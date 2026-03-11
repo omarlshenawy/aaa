@@ -137,7 +137,7 @@ class _MovieListPageState extends State<MovieListPage> {
                         children: [
                           ClipRRect(
                             borderRadius: BorderRadius.circular(8),
-                            child: Icon((movie["posterurl"]=='1')? Icons.image : Icons.image_not_supported )
+                            child: Icon((movie["posterUrl"]=='1')? Icons.image : Icons.image_not_supported,size: 120, )
                           ),
                           const SizedBox(width: 16),
                           Expanded(
