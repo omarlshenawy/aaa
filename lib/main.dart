@@ -1,9 +1,23 @@
 import 'dart:convert';
-import 'dart:html' as html; // For web video
-import 'dart:ui_web' as ui;
-import 'package:flutter/foundation.dart'; // For kIsWeb
+import 'dart:html' as html;
+import 'dart:ui' as ui;
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:video_player/video_player.dart';
+import 'package:chewie/chewie.dart';
 import 'package:http/http.dart' as http;
+
+// JS interop
+import 'package:js/js.dart';
+
+@JS('Hls')
+class HlsJs {
+  external factory HlsJs();
+  external void loadSource(String url);
+  external void attachMedia(dynamic video);
+  external bool get isSupported;
+}
 
 void main() {
   runApp(const MyApp());
@@ -23,7 +37,7 @@ class MyApp extends StatelessWidget {
   }
 }
 
-// ------------------- Movie List Page -------------------
+// ---------------- Movie List Page ----------------
 class MovieListPage extends StatefulWidget {
   const MovieListPage({super.key});
 
@@ -84,8 +98,8 @@ class _MovieListPageState extends State<MovieListPage> {
           : error != null
           ? Center(child: Text(error!))
           : ListView.builder(
-        padding: const EdgeInsets.symmetric(
-            vertical: 8, horizontal: 12),
+        padding:
+        const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
         itemCount: movies.length,
         itemBuilder: (context, index) {
           final movie = movies[index];
@@ -132,8 +146,7 @@ class _MovieListPageState extends State<MovieListPage> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) =>
-                          MovieDetailPage(movie: movie),
+                      builder: (_) => MovieDetailPage(movie: movie),
                     ),
                   );
                 },
@@ -146,7 +159,7 @@ class _MovieListPageState extends State<MovieListPage> {
   }
 }
 
-// ------------------- Movie Detail Page -------------------
+// ---------------- Movie Detail Page ----------------
 class MovieDetailPage extends StatefulWidget {
   final Map<String, String> movie;
   const MovieDetailPage({super.key, required this.movie});
@@ -156,45 +169,72 @@ class MovieDetailPage extends StatefulWidget {
 }
 
 class _MovieDetailPageState extends State<MovieDetailPage> {
+  VideoPlayerController? _videoController;
+  ChewieController? _chewieController;
+  late String viewId;
+
   @override
   void initState() {
     super.initState();
-    // Register a view for HLS video in web
-    if (kIsWeb) {
+
+    final videoUrl = widget.movie["videoUrl"]!;
+
+    if (kIsWeb && videoUrl.endsWith('.m3u8')) {
+      // Web HLS
+      viewId = 'video-${widget.movie["title"]}';
+
       // ignore: undefined_prefixed_name
-      ui.platformViewRegistry.registerViewFactory(
-        widget.movie["title"]!,
-            (int viewId) {
-          final video = html.VideoElement()
-            ..controls = true
-            ..style.width = '100%'
-            ..style.height = '100%';
+      ui.platformViewRegistry.registerViewFactory(viewId, (int viewIdInt) {
+        final video = html.VideoElement()
+          ..controls = true
+          ..autoplay = true
+          ..style.width = '100%'
+          ..style.height = '100%';
 
-          final videoUrl = widget.movie["videoUrl"]!;
-          if (videoUrl.endsWith('.m3u8')) {
-            final script = html.ScriptElement()
-              ..innerHtml = """
-              if(Hls.isSupported()){
-                var hls = new Hls();
-                hls.loadSource('$videoUrl');
-                hls.attachMedia(document.getElementById('$viewId'));
-              } else {
-                document.getElementById('$viewId').src = '$videoUrl';
-              }
-              """;
-            html.document.body!.append(script);
-          } else {
-            video.src = videoUrl;
-          }
+        // Use HlsJs via JS interop
+        final hls = HlsJs();
+        if (hls.isSupported) {
+          hls.loadSource(videoUrl);
+          hls.attachMedia(video);
+        } else {
+          video.src = videoUrl; // fallback for Safari
+        }
 
-          return video;
-        },
-      );
+        return video;
+      });
+    } else {
+      // Mobile/TV or MP4
+      _videoController = VideoPlayerController.network(videoUrl)
+        ..initialize().then((_) {
+          _chewieController = ChewieController(
+            videoPlayerController: _videoController!,
+            autoPlay: true,
+            looping: false,
+            showControls: true,
+            allowMuting: true,
+            allowPlaybackSpeedChanging: true,
+            materialProgressColors: ChewieProgressColors(
+              playedColor: Colors.orange,
+              handleColor: Colors.orange,
+              backgroundColor: Colors.grey,
+              bufferedColor: Colors.white,
+            ),
+          );
+          setState(() {});
+        });
     }
   }
 
   @override
+  void dispose() {
+    _videoController?.dispose();
+    _chewieController?.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final videoUrl = widget.movie["videoUrl"]!;
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
@@ -202,21 +242,27 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
         backgroundColor: Colors.orange,
       ),
       body: Center(
-        child: kIsWeb && widget.movie["videoUrl"]!.endsWith('.m3u8')
+        child: kIsWeb && videoUrl.endsWith('.m3u8')
             ? SizedBox(
           width: 800,
           height: 450,
-          child: HtmlElementView(viewType: widget.movie["title"]!),
+          child: HtmlElementView(viewType: viewId),
         )
-            : Text(
-          "Video type not supported on this device",
-          style: TextStyle(color: Colors.white),
-        ),
+            : (_chewieController != null &&
+            _chewieController!.videoPlayerController.value.isInitialized
+            ? Padding(
+          padding: const EdgeInsets.all(20),
+          child: AspectRatio(
+            aspectRatio: _chewieController!
+                .videoPlayerController.value.aspectRatio,
+            child: Chewie(controller: _chewieController!),
+          ),
+        )
+            : const CircularProgressIndicator()),
       ),
     );
   }
 }
-
 
 /*
 flutter build web --release --base-href /aaa/
