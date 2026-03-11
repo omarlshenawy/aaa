@@ -182,31 +182,34 @@ class _MovieListPageState extends State<MovieListPage> {
       floatingActionButton: Column(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          FloatingActionButton(
+          FloatingActionButton.large(
             heroTag: "scroll_up",
             onPressed: () {
               _scrollController.animateTo(
-                (_scrollController.offset - 250)
+                (_scrollController.offset - 380)
                     .clamp(0.0, _scrollController.position.maxScrollExtent),
-                duration: const Duration(milliseconds: 300),
+                duration: const Duration(milliseconds: 200),
                 curve: Curves.easeInOut,
               );
             },
             backgroundColor: Colors.orange,
-            child: const Icon(Icons.arrow_upward),
+            child: const Icon(Icons.arrow_upward, size: 40),
           ),
-          FloatingActionButton(
+
+          const SizedBox(height: 30), // bigger space between buttons
+
+          FloatingActionButton.large(
             heroTag: "scroll_down",
             onPressed: () {
               _scrollController.animateTo(
-                (_scrollController.offset + 250)
+                (_scrollController.offset + 380)
                     .clamp(0.0, _scrollController.position.maxScrollExtent),
-                duration: const Duration(milliseconds: 300),
+                duration: const Duration(milliseconds: 200),
                 curve: Curves.easeInOut,
               );
             },
             backgroundColor: Colors.orange,
-            child: const Icon(Icons.arrow_downward),
+            child: const Icon(Icons.arrow_downward, size: 40),
           ),
         ],
       ),
