@@ -3,7 +3,6 @@ import 'dart:html' as html; // For web fullscreen
 import 'package:chewie/chewie.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_cors_image/flutter_cors_image.dart';
 import 'package:http/http.dart' as http;
 import 'package:video_player/video_player.dart';
 
@@ -138,18 +137,7 @@ class _MovieListPageState extends State<MovieListPage> {
                         children: [
                           ClipRRect(
                             borderRadius: BorderRadius.circular(8),
-                            child: CustomNetworkImage(
-                              url: movie["posterUrl"] ?? "",
-                              width: 140,
-                              height: 140,
-                              fit: BoxFit.fitHeight,
-                              webStorageCacheConfig: WebStorageCacheConfig(
-                                enabled: true,
-                                cacheExpirationHours: 168,
-                                maxCacheSize: 100 * 1024 * 1024,
-                              ),
-                              errorWidget: const Icon(Icons.broken_image, size: 50),
-                            ),
+                            child: Icon((movie["posterurl"]=='1')? Icons.image : Icons.image_not_supported )
                           ),
                           const SizedBox(width: 16),
                           Expanded(
@@ -198,7 +186,7 @@ class _MovieListPageState extends State<MovieListPage> {
             heroTag: "scroll_up",
             onPressed: () {
               _scrollController.animateTo(
-                (_scrollController.offset - 200)
+                (_scrollController.offset - 250)
                     .clamp(0.0, _scrollController.position.maxScrollExtent),
                 duration: const Duration(milliseconds: 300),
                 curve: Curves.easeInOut,
@@ -211,7 +199,7 @@ class _MovieListPageState extends State<MovieListPage> {
             heroTag: "scroll_down",
             onPressed: () {
               _scrollController.animateTo(
-                (_scrollController.offset + 200)
+                (_scrollController.offset + 250)
                     .clamp(0.0, _scrollController.position.maxScrollExtent),
                 duration: const Duration(milliseconds: 300),
                 curve: Curves.easeInOut,
