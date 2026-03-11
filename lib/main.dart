@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:html' as html; // For web fullscreen
 import 'package:chewie/chewie.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_cors_image/flutter_cors_image.dart';
 import 'package:http/http.dart' as http;
 import 'package:video_player/video_player.dart';
@@ -37,11 +38,17 @@ class _MovieListPageState extends State<MovieListPage> {
   List<Map<String,String>> movies = [];
   bool isLoading = true;
   String? error;
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
     fetchMovies();
+  }
+  @override
+  void dispose() {
+    _scrollController.dispose(); // dispose it when not needed
+    super.dispose();
   }
 
   Future fetchMovies() async {
@@ -79,7 +86,7 @@ class _MovieListPageState extends State<MovieListPage> {
       appBar: AppBar(
         title: const Text(
           "Movies",
-          style: TextStyle(color: Colors.orange, fontSize: 32),
+          style: TextStyle(color: Colors.orange, fontSize: 26),
         ),
         centerTitle: true,
         backgroundColor: Colors.transparent,
@@ -88,75 +95,109 @@ class _MovieListPageState extends State<MovieListPage> {
           ? const Center(child: CircularProgressIndicator())
           : error != null
           ? Center(child: Text(error!))
-          : ListView.builder(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-        itemCount: movies.length,
-        itemBuilder: (context, index) {
-          final movie = movies[index];
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6),
-            child: Card(
-              color: Colors.grey[900],
-              elevation: 6,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Card(
-                color: Colors.grey[900],
-                elevation: 6,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center, // align top
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: CustomNetworkImage(
-                          url: movie["posterUrl"] ?? "",
-                          width: 150, // larger width
-                          height: 180, // larger height
-                          fit: BoxFit.cover,
-                          webStorageCacheConfig: WebStorageCacheConfig(
-                            enabled: true,
-                            cacheExpirationHours: 168,
-                            maxCacheSize: 100 * 1024 * 1024,
-                          ),
-                          errorWidget: const Icon(Icons.broken_image, size: 50),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              movie["title"] ?? "",
-                              style: const TextStyle(
-                                  color: Colors.orange,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 24), // bigger font
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              "Episode ${movie["episode"] ?? ""}",
-                              style: const TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 20), // bigger font
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+          : Focus(
+        autofocus: true,
+            child: RawKeyboardListener(
+              focusNode: FocusNode(),
+              onKey: (event) {
+                if (event is RawKeyDownEvent) {
+                  if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+                    _scrollController.animateTo(
+                      _scrollController.offset + 100,
+                      duration: const Duration(milliseconds: 200),
+                      curve: Curves.easeInOut,
+                    );
+                  } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+                    _scrollController.animateTo(
+                      _scrollController.offset - 100,
+                      duration: const Duration(milliseconds: 200),
+                      curve: Curves.easeInOut,
+                    );
+                  }
+                }
+              },
+              child: ListView.builder(
+                controller: _scrollController,
+                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                      itemCount: movies.length,
+                      itemBuilder: (context, index) {
+              final movie = movies[index];
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Card(
+                  color: Colors.grey[900],
+                  elevation: 6,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
+                    child: Card(
+                      color: Colors.grey[900],
+                      elevation: 6,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: InkWell(
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.center, // align top
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: CustomNetworkImage(
+                                  url: movie["posterUrl"] ?? "",
+                                  width: 140, // larger width
+                                  height: 140, // larger height
+                                  fit: BoxFit.fitHeight,
+                                  webStorageCacheConfig: WebStorageCacheConfig(
+                                    enabled: true,
+                                    cacheExpirationHours: 168,
+                                    maxCacheSize: 100 * 1024 * 1024,
+                                  ),
+                                  errorWidget: const Icon(Icons.broken_image, size: 50),
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      movie["title"] ?? "",
+                                      style: const TextStyle(
+                                          color: Colors.orange,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 24), // bigger font
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      "Episode ${movie["episode"] ?? ""}",
+                                      style: const TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 20), // bigger font
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => MovieDetailPage(movie: movie),
+                            ),
+                          );
+                        },
+                      ),
+                    )
                 ),
-              )
+              );
+                      },
+                    ),
             ),
-          );
-        },
-      ),
+          ),
     );
   }
 }
