@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:html' as html; // For web fullscreen
 import 'package:chewie/chewie.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_cors_image/flutter_cors_image.dart';
 import 'package:http/http.dart' as http;
 import 'package:video_player/video_player.dart';
 
@@ -78,7 +79,7 @@ class _MovieListPageState extends State<MovieListPage> {
       appBar: AppBar(
         title: const Text(
           "Movies",
-          style: TextStyle(color: Colors.orange, fontSize: 26),
+          style: TextStyle(color: Colors.orange, fontSize: 32),
         ),
         centerTitle: true,
         backgroundColor: Colors.transparent,
@@ -100,42 +101,58 @@ class _MovieListPageState extends State<MovieListPage> {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: ListTile(
-                contentPadding: const EdgeInsets.all(12),
-                leading: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Image.network(
-                    movie["posterUrl"] ?? "",
-                    width: 120,
-                    height: 180,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        width: 120,
-                        height: 180,
-                        color: Colors.grey,
-                        child: const Icon(Icons.movie, color: Colors.white70, size: 50),
-                      );
-                    },
+              child: Card(
+                color: Colors.grey[900],
+                elevation: 6,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center, // align top
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: CustomNetworkImage(
+                          url: movie["posterUrl"] ?? "",
+                          width: 150, // larger width
+                          height: 180, // larger height
+                          fit: BoxFit.cover,
+                          webStorageCacheConfig: WebStorageCacheConfig(
+                            enabled: true,
+                            cacheExpirationHours: 168,
+                            maxCacheSize: 100 * 1024 * 1024,
+                          ),
+                          errorWidget: const Icon(Icons.broken_image, size: 50),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              movie["title"] ?? "",
+                              style: const TextStyle(
+                                  color: Colors.orange,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 24), // bigger font
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              "Episode ${movie["episode"] ?? ""}",
+                              style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 20), // bigger font
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                title: Text(
-                  movie["title"] ?? "",
-                  style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 18),
-                ),
-                subtitle: Text(
-                  "Episode ${movie["episode"] ?? ""}",
-                  style: const TextStyle(color: Colors.white70),
-                ),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => MovieDetailPage(movie: movie),
-                    ),
-                  );
-                },
-              ),
+              )
             ),
           );
         },
