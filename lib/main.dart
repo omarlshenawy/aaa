@@ -219,8 +219,9 @@ class _MovieListPageState extends State<MovieListPage> {
 
 
 // ------------------- Movie Detail Page -------------------
+// ------------------- Movie Detail Page -------------------
 class MovieDetailPage extends StatefulWidget {
-  final Map<String,String> movie;
+  final Map<String, String> movie;
   const MovieDetailPage({super.key, required this.movie});
 
   @override
@@ -230,7 +231,7 @@ class MovieDetailPage extends StatefulWidget {
 class _MovieDetailPageState extends State<MovieDetailPage> {
 
   late VideoPlayerController videoController;
-  ChewieController? chewieController;
+  final FocusNode _focusNode = FocusNode();
 
   @override
   void initState() {
@@ -238,38 +239,65 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
 
     videoController = VideoPlayerController.networkUrl(
       Uri.parse(widget.movie["videoUrl"]!),
+      videoPlayerOptions:  VideoPlayerOptions(mixWithOthers: true),
     );
 
     videoController.initialize().then((_) {
-      chewieController = ChewieController(
-        videoPlayerController: videoController,
-        autoPlay: true,
-        looping: false,
-        allowFullScreen: false, // we handle true fullscreen manually
-        showControls: true,
-        allowMuting: true,
-        allowPlaybackSpeedChanging: true,
-        materialProgressColors: ChewieProgressColors(
-          playedColor: Colors.orange,
-          handleColor: Colors.orange,
-          backgroundColor: Colors.grey,
-          bufferedColor: Colors.white,
-        ),
-      );
+      videoController.play();
+      setState(() {});
+    });
+
+    videoController.addListener(() {
       setState(() {});
     });
   }
 
-  // True fullscreen using browser API
+  // Fullscreen for browser
   void enterFullscreen() {
     final videoElement = html.document.querySelector('video');
     if (videoElement != null) {
-      if (videoElement.requestFullscreen != null) {
-        videoElement.requestFullscreen();
-      } else if ((videoElement as dynamic).webkitRequestFullscreen != null) {
-        (videoElement as dynamic).webkitRequestFullscreen();
-      } else if ((videoElement as dynamic).mozRequestFullScreen != null) {
-        (videoElement as dynamic).mozRequestFullScreen();
+      videoElement.requestFullscreen();
+    }
+  }
+
+  // Jump function
+  void jumpSeconds(int seconds) {
+    final position = videoController.value.position;
+    final duration = videoController.value.duration;
+
+    Duration newPosition = position + Duration(seconds: seconds);
+
+    if (newPosition < Duration.zero) newPosition = Duration.zero;
+    if (newPosition > duration) newPosition = duration;
+
+    videoController.seekTo(newPosition);
+  }
+
+  // TV remote keys
+  void handleKey(RawKeyEvent event) {
+    if (event is RawKeyDownEvent) {
+
+      if (event.logicalKey == LogicalKeyboardKey.select ||
+          event.logicalKey == LogicalKeyboardKey.enter ||
+          event.logicalKey == LogicalKeyboardKey.space) {
+
+        if (videoController.value.isPlaying) {
+          videoController.pause();
+        } else {
+          videoController.play();
+        }
+      }
+
+      if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+        jumpSeconds(-10);
+      }
+
+      if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+        jumpSeconds(10);
+      }
+
+      if (event.logicalKey == LogicalKeyboardKey.keyF) {
+        enterFullscreen();
       }
     }
   }
@@ -277,35 +305,148 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
   @override
   void dispose() {
     videoController.dispose();
-    chewieController?.dispose();
+    _focusNode.dispose();
     super.dispose();
+  }
+
+  String formatTime(Duration d) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    final h = two(d.inHours);
+    final m = two(d.inMinutes.remainder(60));
+    final s = two(d.inSeconds.remainder(60));
+    return h == "00" ? "$m:$s" : "$h:$m:$s";
   }
 
   @override
   Widget build(BuildContext context) {
+
+    final position = videoController.value.position;
+    final duration = videoController.value.duration;
+
     return Scaffold(
       backgroundColor: Colors.black,
+
       appBar: AppBar(
         title: Text(widget.movie["title"] ?? ""),
         backgroundColor: Colors.orange,
         actions: [
           IconButton(
-            icon: const Icon(Icons.fullscreen, size: 28),
+            icon: const Icon(Icons.fullscreen),
             onPressed: enterFullscreen,
           )
         ],
       ),
-      body: Center(
-        child: chewieController != null &&
-            chewieController!.videoPlayerController.value.isInitialized
-            ? Padding(
-          padding: const EdgeInsets.all(20),
-          child: AspectRatio(
-            aspectRatio: chewieController!.videoPlayerController.value.aspectRatio,
-            child: Chewie(controller: chewieController!),
-          ),
-        )
-            : const CircularProgressIndicator(),
+
+      body: RawKeyboardListener(
+        focusNode: _focusNode,
+        autofocus: true,
+        onKey: handleKey,
+        child: Column(
+          children: [
+
+            // Video
+            Expanded(
+              child: Center(
+                child: videoController.value.isInitialized
+                    ? AspectRatio(
+                  aspectRatio: videoController.value.aspectRatio,
+                  child: VideoPlayer(videoController),
+                )
+                    : const CircularProgressIndicator(),
+              ),
+            ),
+
+            // Progress Bar
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Column(
+                children: [
+
+                  Slider(
+                    min: 0,
+                    max: duration.inSeconds.toDouble(),
+                    value: position.inSeconds
+                        .clamp(0, duration.inSeconds)
+                        .toDouble(),
+                    activeColor: Colors.orange,
+                    inactiveColor: Colors.grey,
+                    onChanged: (value) {
+                      videoController.seekTo(
+                        Duration(seconds: value.toInt()),
+                      );
+                    },
+                  ),
+
+                  // Time row
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          formatTime(position),
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                        Text(
+                          formatTime(duration),
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 15),
+
+                  // Control Buttons
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+
+                      IconButton(
+                        iconSize: 40,
+                        color: Colors.white,
+                        icon: const Icon(Icons.replay_10),
+                        onPressed: () => jumpSeconds(-10),
+                      ),
+
+                      const SizedBox(width: 20),
+
+                      IconButton(
+                        iconSize: 50,
+                        color: Colors.orange,
+                        icon: Icon(
+                          videoController.value.isPlaying
+                              ? Icons.pause
+                              : Icons.play_arrow,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            if (videoController.value.isPlaying) {
+                              videoController.pause();
+                            } else {
+                              videoController.play();
+                            }
+                          });
+                        },
+                      ),
+
+                      const SizedBox(width: 20),
+
+                      IconButton(
+                        iconSize: 40,
+                        color: Colors.white,
+                        icon: const Icon(Icons.forward_10),
+                        onPressed: () => jumpSeconds(10),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 20),
+                ],
+              ),
+            )
+          ],
+        ),
       ),
     );
   }

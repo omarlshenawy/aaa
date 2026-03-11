@@ -39,6 +39,7 @@ dependencies:
   cupertino_icons: ^1.0.8
   flutter_cors_image: ^0.3.13
 
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
