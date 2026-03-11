@@ -1,22 +1,35 @@
 import 'dart:convert';
 import 'dart:html' as html;
-import 'dart:ui' as ui;
-
+import 'dart:ui_web' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import 'package:chewie/chewie.dart';
 import 'package:http/http.dart' as http;
 
-// JS interop
+// JS interop for HLS
 import 'package:js/js.dart';
 
 @JS('Hls')
-class HlsJs {
-  external factory HlsJs();
+class Hls {
+  external factory Hls();
   external void loadSource(String url);
-  external void attachMedia(dynamic video);
-  external bool get isSupported;
+  external void attachMedia(html.VideoElement video);
+  external bool isSupported();
+}
+
+// Platform view registry for web
+// ignore: undefined_prefixed_name
+@JS('window')
+external dynamic get _window;
+
+void registerViewFactory(String viewId, html.VideoElement video) {
+  _window.document.createElement('div'); // dummy to force JS initialization
+  // Use window['flutter'] to access Flutter web registry
+  // ignore: undefined_prefixed_name
+  html.window.console.log('Register view: $viewId');
+  // ignore: undefined_prefixed_name
+  ui.platformViewRegistry.registerViewFactory(viewId, (int viewIdInt) => video);
 }
 
 void main() {
@@ -60,7 +73,6 @@ class _MovieListPageState extends State<MovieListPage> {
     try {
       final response = await http.get(Uri.parse(
           "https://raw.githubusercontent.com/omarlshenawy/vvv/refs/heads/main/m.json?t=${DateTime.now().millisecondsSinceEpoch}"));
-
       if (response.statusCode == 200) {
         List data = json.decode(response.body);
         movies = data.map((e) => Map<String, String>.from(e)).toList();
@@ -98,8 +110,8 @@ class _MovieListPageState extends State<MovieListPage> {
           : error != null
           ? Center(child: Text(error!))
           : ListView.builder(
-        padding:
-        const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+        padding: const EdgeInsets.symmetric(
+            vertical: 8, horizontal: 12),
         itemCount: movies.length,
         itemBuilder: (context, index) {
           final movie = movies[index];
@@ -176,32 +188,28 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
   @override
   void initState() {
     super.initState();
-
     final videoUrl = widget.movie["videoUrl"]!;
+    viewId = widget.movie["title"]! +
+        DateTime.now().millisecondsSinceEpoch.toString();
 
     if (kIsWeb && videoUrl.endsWith('.m3u8')) {
-      // Web HLS
-      viewId = 'video-${widget.movie["title"]}';
+      final video = html.VideoElement()
+        ..controls = true
+        ..autoplay = true
+        ..style.width = '100%'
+        ..style.height = '100%';
 
+      final hls = Hls();
+      if (hls.isSupported()) {
+        hls.loadSource(videoUrl);
+        hls.attachMedia(video);
+      } else {
+        video.src = videoUrl; // fallback
+      }
+
+      // Modern Flutter Web: use ui.platformViewRegistry only on web
       // ignore: undefined_prefixed_name
-      ui.platformViewRegistry.registerViewFactory(viewId, (int viewIdInt) {
-        final video = html.VideoElement()
-          ..controls = true
-          ..autoplay = true
-          ..style.width = '100%'
-          ..style.height = '100%';
-
-        // Use HlsJs via JS interop
-        final hls = HlsJs();
-        if (hls.isSupported) {
-          hls.loadSource(videoUrl);
-          hls.attachMedia(video);
-        } else {
-          video.src = videoUrl; // fallback for Safari
-        }
-
-        return video;
-      });
+      ui.platformViewRegistry.registerViewFactory(viewId, (int viewIdInt) => video);
     } else {
       // Mobile/TV or MP4
       _videoController = VideoPlayerController.network(videoUrl)
