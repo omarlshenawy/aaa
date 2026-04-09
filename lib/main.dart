@@ -211,8 +211,8 @@ class _MovieListPageState extends State<MovieListPage> {
             child: GridView.builder(
             controller: _scrollController,
             padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 40),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 6, // 🔥 change this (3 = bigger, 5 = smaller)
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: (MediaQuery.of(context).size.width >= 900)? 5 : 2,
               crossAxisSpacing: 25,
               mainAxisSpacing: 25,
               childAspectRatio: 0.7, // 🎬 poster ratio
@@ -468,10 +468,9 @@ class MovieDetailPage extends StatefulWidget {
 }
 
 class _MovieDetailPageState extends State<MovieDetailPage> {
+
   late VideoPlayerController videoController;
   final FocusNode _focusNode = FocusNode();
-  bool showOverlay = true;
-  double playbackSpeed = 1.0;
 
   @override
   void initState() {
@@ -479,7 +478,7 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
 
     videoController = VideoPlayerController.networkUrl(
       Uri.parse(widget.movie["videoUrl"]!),
-      videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
+      videoPlayerOptions:  VideoPlayerOptions(mixWithOthers: true),
     );
 
     videoController.initialize().then((_) {
@@ -492,6 +491,7 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
     });
   }
 
+  // Fullscreen for browser
   void enterFullscreen() {
     final videoElement = html.document.querySelector('video');
     if (videoElement != null) {
@@ -499,40 +499,44 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
     }
   }
 
+  // Jump function
   void jumpSeconds(int seconds) {
     final position = videoController.value.position;
     final duration = videoController.value.duration;
+
     Duration newPosition = position + Duration(seconds: seconds);
+
     if (newPosition < Duration.zero) newPosition = Duration.zero;
     if (newPosition > duration) newPosition = duration;
+
     videoController.seekTo(newPosition);
   }
 
+  // TV remote keys
   void handleKey(RawKeyEvent event) {
     if (event is RawKeyDownEvent) {
+
       if (event.logicalKey == LogicalKeyboardKey.select ||
           event.logicalKey == LogicalKeyboardKey.enter ||
           event.logicalKey == LogicalKeyboardKey.space) {
-        setState(() {
-          videoController.value.isPlaying
-              ? videoController.pause()
-              : videoController.play();
-        });
+
+        if (videoController.value.isPlaying) {
+          videoController.pause();
+        } else {
+          videoController.play();
+        }
       }
-      if (event.logicalKey == LogicalKeyboardKey.arrowLeft) jumpSeconds(-10);
-      if (event.logicalKey == LogicalKeyboardKey.arrowRight) jumpSeconds(10);
-      if (event.logicalKey == LogicalKeyboardKey.keyF) enterFullscreen();
-      if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
-        setState(() {
-          playbackSpeed = (playbackSpeed + 0.25).clamp(0.5, 3.0);
-          videoController.setPlaybackSpeed(playbackSpeed);
-        });
+
+      if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+        jumpSeconds(-10);
       }
-      if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
-        setState(() {
-          playbackSpeed = (playbackSpeed - 0.25).clamp(0.5, 3.0);
-          videoController.setPlaybackSpeed(playbackSpeed);
-        });
+
+      if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+        jumpSeconds(10);
+      }
+
+      if (event.logicalKey == LogicalKeyboardKey.keyF) {
+        enterFullscreen();
       }
     }
   }
@@ -554,208 +558,148 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
 
   @override
   Widget build(BuildContext context) {
+
     final position = videoController.value.position;
     final duration = videoController.value.duration;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0A0A),
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(80),
-        child: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                Colors.black.withOpacity(0.8),
-                Colors.transparent,
-              ],
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-            ),
-          ),
-          child: AppBar(
-            title: Text(
-              "${widget.movie["title"]} ${widget.movie["episode"]}"  ?? "",
-              style: const TextStyle(
-                  fontWeight: FontWeight.bold, fontSize: 28, letterSpacing: 2),
-            ),
-            centerTitle: true,
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.fullscreen,size: 42,),
-                onPressed: enterFullscreen,
-              )
-            ],
-          ),
-        ),
+      backgroundColor: Colors.black,
+
+      appBar: AppBar(
+        centerTitle: true,
+        title: Text("${widget.movie["title"]}  ${widget.movie["episode"]}" ?? ""),
+        backgroundColor: Colors.black,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.fullscreen,size: 42,),
+            onPressed: enterFullscreen,
+          )
+        ],
       ),
+
       body: RawKeyboardListener(
         focusNode: _focusNode,
         autofocus: true,
         onKey: handleKey,
-        child: Stack(
+        child: Column(
           children: [
-            // Video Area
-            Center(
-              child: videoController.value.isInitialized
-                  ? GestureDetector(
-                onTap: () => setState(() => showOverlay = !showOverlay),
-                child: AspectRatio(
+
+            // Video
+            Expanded(
+              child: Center(
+                child: videoController.value.isInitialized
+                    ? AspectRatio(
                   aspectRatio: videoController.value.aspectRatio,
                   child: VideoPlayer(videoController),
-                ),
-              )
-                  : const CircularProgressIndicator(),
+                )
+                    : const CircularProgressIndicator(),
+              ),
             ),
 
-            // Overlay
-            if (showOverlay)
-              Positioned.fill(
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        Colors.black.withOpacity(0.4),
-                        Colors.transparent,
-                        Colors.black.withOpacity(0.4),
+            // Progress Bar
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Column(
+                children: [
+
+                  Slider(
+                    min: 0,
+                    max: duration.inSeconds.toDouble(),
+                    value: position.inSeconds
+                        .clamp(0, duration.inSeconds)
+                        .toDouble(),
+                    activeColor: Colors.orange,
+                    inactiveColor: Colors.grey,
+                    onChanged: (value) {
+                      videoController.seekTo(
+                        Duration(seconds: value.toInt()),
+                      );
+                    },
+                  ),
+
+                  // Time row
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          formatTime(position),
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                        Text(
+                          formatTime(duration),
+                          style: const TextStyle(color: Colors.white),
+                        ),
                       ],
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
                     ),
                   ),
-                ),
-              ),
 
-            // Movie Info Overlay
-            if (showOverlay)
-              Positioned(
-                left: 20,
-                bottom: 120,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFFFF6B00), Color(0xFFFFD700)],
-                        ),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        "EP ${widget.movie["episode"]}",
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      widget.movie["title"] ?? "",
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 26,
-                          fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      "Speed: ${playbackSpeed}x",
-                      style: const TextStyle(color: Colors.white70, fontSize: 14),
-                    )
-                  ],
-                ),
-              ),
+                  const SizedBox(height: 15),
 
-            // Controls
-            if (showOverlay)
-              Positioned(
-                bottom: 20,
-                left: 0,
-                right: 0,
-                child: Column(
-                  children: [
-                    // Progress Bar
-                    Slider(
-                      min: 0,
-                      max: duration.inSeconds.toDouble(),
-                      value: position.inSeconds
-                          .clamp(0, duration.inSeconds)
-                          .toDouble(),
-                      activeColor: Colors.orange,
-                      inactiveColor: Colors.grey,
-                      onChanged: (value) {
-                        videoController.seekTo(
-                          Duration(seconds: value.toInt()),
-                        );
-                      },
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(formatTime(position),
-                              style: const TextStyle(color: Colors.white)),
-                          Text(formatTime(duration),
-                              style: const TextStyle(color: Colors.white)),
-                        ],
+                  // Control Buttons
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton(
+                        iconSize: 40,
+                        color: Colors.white,
+                        icon: const Icon(Icons.arrow_back),
+                        onPressed: () => jumpSeconds(-60),
                       ),
-                    ),
-                    const SizedBox(height: 10),
-                    // Control Buttons
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        IconButton(
-                          iconSize: 40,
-                          color: Colors.white,
-                          icon: const Icon(Icons.arrow_back),
-                          onPressed: () => jumpSeconds(-60),
+
+                      const SizedBox(width: 20),
+                      IconButton(
+                        iconSize: 40,
+                        color: Colors.white,
+                        icon: const Icon(Icons.replay_10),
+                        onPressed: () => jumpSeconds(-10),
+                      ),
+
+                      const SizedBox(width: 20),
+
+                      IconButton(
+                        iconSize: 50,
+                        color: Colors.orange,
+                        icon: Icon(
+                          videoController.value.isPlaying
+                              ? Icons.pause
+                              : Icons.play_arrow,
                         ),
-                        const SizedBox(width: 20),
-                        IconButton(
-                          iconSize: 40,
-                          color: Colors.white,
-                          icon: const Icon(Icons.replay_10),
-                          onPressed: () => jumpSeconds(-10),
-                        ),
-                        const SizedBox(width: 20),
-                        IconButton(
-                          iconSize: 60,
-                          color: Colors.orange,
-                          icon: Icon(
-                              videoController.value.isPlaying
-                                  ? Icons.pause
-                                  : Icons.play_arrow,
-                              size: 60),
-                          onPressed: () => setState(() {
-                            videoController.value.isPlaying
-                                ? videoController.pause()
-                                : videoController.play();
-                          }),
-                        ),
-                        const SizedBox(width: 20),
-                        IconButton(
-                          iconSize: 40,
-                          color: Colors.white,
-                          icon: const Icon(Icons.forward_10),
-                          onPressed: () => jumpSeconds(10),
-                        ),
-                        const SizedBox(width: 20),
-                        IconButton(
-                          iconSize: 40,
-                          color: Colors.white,
-                          icon:  const Icon(Icons.arrow_forward),
-                          onPressed: () => jumpSeconds(60),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+                        onPressed: () {
+                          setState(() {
+                            if (videoController.value.isPlaying) {
+                              videoController.pause();
+                            } else {
+                              videoController.play();
+                            }
+                          });
+                        },
+                      ),
+
+                      const SizedBox(width: 20),
+
+                      IconButton(
+                        iconSize: 40,
+                        color: Colors.white,
+                        icon: const Icon(Icons.forward_10),
+                        onPressed: () => jumpSeconds(10),
+                      ),
+                      const SizedBox(width: 20),
+
+                      IconButton(
+                        iconSize: 40,
+                        color: Colors.white,
+                        icon: const Icon(Icons.arrow_forward),
+                        onPressed: () => jumpSeconds(60),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 20),
+                ],
               ),
+            )
           ],
         ),
       ),
