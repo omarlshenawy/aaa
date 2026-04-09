@@ -648,7 +648,7 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
                         onPressed: () => jumpSeconds(-60),
                       ),
 
-                      const SizedBox(width: 16),
+                      const SizedBox(width: 12),
                       IconButton(
                         iconSize: 40,
                         color: Colors.white,
@@ -656,7 +656,7 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
                         onPressed: () => jumpSeconds(-10),
                       ),
 
-                      const SizedBox(width: 18),
+                      const SizedBox(width: 14),
 
                       IconButton(
                         iconSize: 50,
@@ -677,7 +677,7 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
                         },
                       ),
 
-                      const SizedBox(width: 18),
+                      const SizedBox(width: 14),
 
                       IconButton(
                         iconSize: 40,
@@ -685,7 +685,7 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
                         icon: const Icon(Icons.forward_10),
                         onPressed: () => jumpSeconds(10),
                       ),
-                      const SizedBox(width: 16),
+                      const SizedBox(width: 12),
 
                       IconButton(
                         iconSize: 40,
