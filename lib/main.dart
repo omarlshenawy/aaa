@@ -209,15 +209,15 @@ class _MovieListPageState extends State<MovieListPage> {
               ),
             ),
             child: GridView.builder(
-            controller: _scrollController,
-            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 40),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: (MediaQuery.of(context).size.width >= 900)? 5 : 2,
-              crossAxisSpacing: 25,
-              mainAxisSpacing: 25,
-              childAspectRatio: 0.7, // 🎬 poster ratio
-            ),
-            itemCount: movies.length,
+                controller: _scrollController,
+                padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 40),
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: (MediaQuery.of(context).size.width >= 900)? 5 : 2,
+                  crossAxisSpacing: 25,
+                  mainAxisSpacing: 25,
+                  childAspectRatio: 0.7,
+                ),
+                itemCount: movies.length,
                 itemBuilder: (context, index) {
                   final movie = movies[index];
                   final isHovered = _hoveredIndex == index;
@@ -274,9 +274,8 @@ class _MovieListPageState extends State<MovieListPage> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                // 🎬 ICON AREA - Fixed with Flexible
                                 Flexible(
-                                  flex: 3, // Ensures the icon area takes up most of the card
+                                  flex: 3,
                                   child: Container(
                                     width: double.infinity,
                                     decoration: BoxDecoration(
@@ -291,7 +290,6 @@ class _MovieListPageState extends State<MovieListPage> {
                                     ),
                                     child: Center(
                                       child: Icon(
-                                        // 💡 FIXED LOGIC HERE
                                         "${movie["posterUrl"]}".trim() == "1"
                                             ? Icons.image
                                             : Icons.image_not_supported,
@@ -301,13 +299,11 @@ class _MovieListPageState extends State<MovieListPage> {
                                     ),
                                   ),
                                 ),
-
-                                // 🎯 INFO SECTION
                                 Padding(
                                   padding: const EdgeInsets.all(12),
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
-                                    mainAxisSize: MainAxisSize.min, // Keep it tight
+                                    mainAxisSize: MainAxisSize.min,
                                     children: [
                                       Container(
                                         padding: const EdgeInsets.symmetric(
@@ -331,7 +327,7 @@ class _MovieListPageState extends State<MovieListPage> {
                                       Center(
                                         child: Text(
                                           movie["title"] ?? "",
-                                          maxLines: 1, // Reduced to 1 to ensure UI fits
+                                          maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                           style: TextStyle(
                                             color: Colors.white,
@@ -344,8 +340,8 @@ class _MovieListPageState extends State<MovieListPage> {
                                       AnimatedOpacity(
                                         duration: const Duration(milliseconds: 300),
                                         opacity: isHovered ? 1 : 0,
-                                        child: Row(
-                                          children: const [
+                                        child: const Row(
+                                          children: [
                                             Icon(Icons.play_arrow,
                                                 color: Colors.white, size: 16),
                                             SizedBox(width: 4),
@@ -370,15 +366,13 @@ class _MovieListPageState extends State<MovieListPage> {
                     ),
                   );
                 }
-          ),
+            ),
           ),
         ),
       ),
-      // ---------- Floating Buttons ----------
       floatingActionButton: Column(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          // Scroll Up Button
           RawMaterialButton(
             onPressed: () {
               _scrollController.animateTo(
@@ -391,7 +385,7 @@ class _MovieListPageState extends State<MovieListPage> {
             shape: const CircleBorder(),
             padding: EdgeInsets.zero,
             elevation: 10,
-            fillColor: Colors.transparent, // gradient handles the color
+            fillColor: Colors.transparent,
             child: Container(
               width: 100,
               height: 100,
@@ -413,10 +407,7 @@ class _MovieListPageState extends State<MovieListPage> {
               child: const Icon(Icons.arrow_upward, size: 50, color: Colors.white),
             ),
           ),
-
-          const SizedBox(height: 30), // Space between buttons
-
-          // Scroll Down Button
+          const SizedBox(height: 30),
           RawMaterialButton(
             onPressed: () {
               _scrollController.animateTo(
@@ -429,7 +420,7 @@ class _MovieListPageState extends State<MovieListPage> {
             shape: const CircleBorder(),
             padding: EdgeInsets.zero,
             elevation: 10,
-            fillColor: Colors.transparent, // gradient will handle background
+            fillColor: Colors.transparent,
             child: Container(
               width: 100,
               height: 100,
@@ -457,8 +448,7 @@ class _MovieListPageState extends State<MovieListPage> {
   }
 }
 
-
-// ------------------- Movie Detail Page -------------------
+// ------------------- Movie Detail Page (FIXED) -------------------
 class MovieDetailPage extends StatefulWidget {
   final Map<String, String> movie;
   const MovieDetailPage({super.key, required this.movie});
@@ -468,30 +458,66 @@ class MovieDetailPage extends StatefulWidget {
 }
 
 class _MovieDetailPageState extends State<MovieDetailPage> {
-
   late VideoPlayerController videoController;
   final FocusNode _focusNode = FocusNode();
+  bool _isLiveStream = false;
+  bool _isInitialized = false;
+  String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
-
-    videoController = VideoPlayerController.networkUrl(
-      Uri.parse(widget.movie["videoUrl"]!),
-      videoPlayerOptions:  VideoPlayerOptions(mixWithOthers: true),
-    );
-
-    videoController.initialize().then((_) {
-      videoController.play();
-      setState(() {});
-    });
-
-    videoController.addListener(() {
-      setState(() {});
-    });
+    _initializeVideo();
   }
 
-  // Fullscreen for browser
+  Future<void> _initializeVideo() async {
+    try {
+      final videoUrl = widget.movie["videoUrl"]!;
+
+      // Check if it's a live stream (common live stream extensions/patterns)
+      _isLiveStream = videoUrl.contains('.m3u8') ||
+          videoUrl.contains('live') ||
+          videoUrl.contains('stream') ||
+          videoUrl.contains('.ts');
+
+      videoController = VideoPlayerController.networkUrl(
+        Uri.parse(videoUrl),
+        videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
+      );
+
+      // Add listener for errors using the standard listener
+      videoController.addListener(() {
+        if (videoController.value.hasError) {
+          setState(() {
+            _errorMessage = videoController.value.errorDescription ?? 'Unknown error occurred';
+          });
+        }
+      });
+
+      // Initialize the controller
+      await videoController.initialize();
+
+      setState(() {
+        _isInitialized = true;
+      });
+
+      // Auto-play after initialization
+      await videoController.play();
+
+      // Listen for playback changes
+      videoController.addListener(() {
+        if (mounted) {
+          setState(() {});
+        }
+      });
+
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Failed to load video: ${e.toString()}';
+      });
+    }
+  }
+
   void enterFullscreen() {
     final videoElement = html.document.querySelector('video');
     if (videoElement != null) {
@@ -499,8 +525,9 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
     }
   }
 
-  // Jump function
   void jumpSeconds(int seconds) {
+    if (!_isInitialized || _isLiveStream) return; // Disable seeking for live streams
+
     final position = videoController.value.position;
     final duration = videoController.value.duration;
 
@@ -512,27 +539,26 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
     videoController.seekTo(newPosition);
   }
 
-  // TV remote keys
   void handleKey(RawKeyEvent event) {
     if (event is RawKeyDownEvent) {
-
       if (event.logicalKey == LogicalKeyboardKey.select ||
           event.logicalKey == LogicalKeyboardKey.enter ||
           event.logicalKey == LogicalKeyboardKey.space) {
-
         if (videoController.value.isPlaying) {
           videoController.pause();
         } else {
           videoController.play();
         }
+        setState(() {});
       }
 
-      if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
-        jumpSeconds(-10);
-      }
-
-      if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
-        jumpSeconds(10);
+      if (!_isLiveStream) {
+        if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+          jumpSeconds(-10);
+        }
+        if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+          jumpSeconds(10);
+        }
       }
 
       if (event.logicalKey == LogicalKeyboardKey.keyF) {
@@ -558,148 +584,231 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
 
   @override
   Widget build(BuildContext context) {
-
-    final position = videoController.value.position;
-    final duration = videoController.value.duration;
-
     return Scaffold(
       backgroundColor: Colors.black,
-
       appBar: AppBar(
         centerTitle: true,
-        title: Text("${widget.movie["title"]}  ${widget.movie["episode"]}" ?? ""),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text("${widget.movie["title"]}  ${widget.movie["episode"]}" ?? ""),
+            if (_isLiveStream) ...[
+              const SizedBox(width: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.red,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Text(
+                  'LIVE',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ],
+        ),
         backgroundColor: Colors.black,
         actions: [
           IconButton(
-            icon: const Icon(Icons.fullscreen,size: 42,),
+            icon: const Icon(Icons.fullscreen, size: 42),
             onPressed: enterFullscreen,
           )
         ],
       ),
-
       body: RawKeyboardListener(
         focusNode: _focusNode,
         autofocus: true,
         onKey: handleKey,
-        child: Column(
+        child: _errorMessage != null
+            ? Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, color: Colors.red, size: 64),
+              const SizedBox(height: 16),
+              Text(
+                _errorMessage!,
+                style: const TextStyle(color: Colors.white, fontSize: 16),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () {
+                  setState(() {
+                    _errorMessage = null;
+                    _isInitialized = false;
+                  });
+                  _initializeVideo();
+                },
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        )
+            : Column(
           children: [
-
-            // Video
+            // Video Player
             Expanded(
               child: Center(
-                child: videoController.value.isInitialized
+                child: _isInitialized
                     ? AspectRatio(
-                  aspectRatio: videoController.value.aspectRatio,
-                  child: VideoPlayer(videoController),
+                  aspectRatio: videoController.value.aspectRatio > 0
+                      ? videoController.value.aspectRatio
+                      : 16 / 9, // Fallback aspect ratio
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      VideoPlayer(videoController),
+                      // Show loading indicator while buffering
+                      if (videoController.value.isBuffering)
+                        const CircularProgressIndicator(
+                          color: Colors.orange,
+                        ),
+                      // Play/Pause button overlay
+                      if (!videoController.value.isPlaying && _isInitialized)
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.black26,
+                            borderRadius: BorderRadius.circular(50),
+                          ),
+                          child: IconButton(
+                            iconSize: 64,
+                            color: Colors.white,
+                            icon: const Icon(Icons.play_arrow),
+                            onPressed: () {
+                              videoController.play();
+                              setState(() {});
+                            },
+                          ),
+                        ),
+                    ],
+                  ),
                 )
-                    : const CircularProgressIndicator(),
+                    : const Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircularProgressIndicator(color: Colors.orange),
+                    SizedBox(height: 20),
+                    Text(
+                      'Loading video...',
+                      style: TextStyle(color: Colors.white70),
+                    ),
+                  ],
+                ),
               ),
             ),
 
-            // Progress Bar
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Column(
-                children: [
-
-                  Slider(
-                    min: 0,
-                    max: duration.inSeconds.toDouble(),
-                    value: position.inSeconds
-                        .clamp(0, duration.inSeconds)
-                        .toDouble(),
-                    activeColor: Colors.orange,
-                    inactiveColor: Colors.grey,
-                    onChanged: (value) {
-                      videoController.seekTo(
-                        Duration(seconds: value.toInt()),
-                      );
-                    },
-                  ),
-
-                  // Time row
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          formatTime(position),
-                          style: const TextStyle(color: Colors.white),
-                        ),
-                        Text(
-                          formatTime(duration),
-                          style: const TextStyle(color: Colors.white),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 15),
-
-                  // Control Buttons
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      IconButton(
-                        iconSize: 40,
-                        color: Colors.white,
-                        icon: const Icon(Icons.arrow_back),
-                        onPressed: () => jumpSeconds(-60),
-                      ),
-
-                      const SizedBox(width: 12),
-                      IconButton(
-                        iconSize: 40,
-                        color: Colors.white,
-                        icon: const Icon(Icons.replay_10),
-                        onPressed: () => jumpSeconds(-10),
-                      ),
-
-                      const SizedBox(width: 14),
-
-                      IconButton(
-                        iconSize: 50,
-                        color: Colors.orange,
-                        icon: Icon(
-                          videoController.value.isPlaying
-                              ? Icons.pause
-                              : Icons.play_arrow,
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            if (videoController.value.isPlaying) {
-                              videoController.pause();
-                            } else {
-                              videoController.play();
-                            }
-                          });
+            // Controls - Hide progress bar for live streams
+            if (_isInitialized)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  children: [
+                    if (!_isLiveStream) ...[
+                      Slider(
+                        min: 0,
+                        max: videoController.value.duration.inSeconds.toDouble(),
+                        value: videoController.value.position.inSeconds
+                            .clamp(0, videoController.value.duration.inSeconds)
+                            .toDouble(),
+                        activeColor: Colors.orange,
+                        inactiveColor: Colors.grey,
+                        onChanged: (value) {
+                          videoController.seekTo(
+                            Duration(seconds: value.toInt()),
+                          );
                         },
                       ),
-
-                      const SizedBox(width: 14),
-
-                      IconButton(
-                        iconSize: 40,
-                        color: Colors.white,
-                        icon: const Icon(Icons.forward_10),
-                        onPressed: () => jumpSeconds(10),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              formatTime(videoController.value.position),
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                            Text(
+                              formatTime(videoController.value.duration),
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                          ],
+                        ),
                       ),
-                      const SizedBox(width: 12),
-
-                      IconButton(
-                        iconSize: 40,
-                        color: Colors.white,
-                        icon: const Icon(Icons.arrow_forward),
-                        onPressed: () => jumpSeconds(60),
+                    ] else ...[
+                      // Live indicator
+                      const SizedBox(height: 10),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            width: 10,
+                            height: 10,
+                            decoration: const BoxDecoration(
+                              color: Colors.red,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'LIVE',
+                            style: TextStyle(
+                              color: Colors.red,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
-                  ),
-
-                  const SizedBox(height: 20),
-                ],
+                    const SizedBox(height: 15),
+                    // Control Buttons
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        if (!_isLiveStream) ...[
+                          IconButton(
+                            iconSize: 40,
+                            color: Colors.white,
+                            icon: const Icon(Icons.replay_10_sharp),
+                            onPressed: () => jumpSeconds(-10),
+                          ),
+                          const SizedBox(width: 14),
+                        ],
+                        IconButton(
+                          iconSize: 50,
+                          color: Colors.orange,
+                          icon: Icon(
+                            videoController.value.isPlaying
+                                ? Icons.pause
+                                : Icons.play_arrow,
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              if (videoController.value.isPlaying) {
+                                videoController.pause();
+                              } else {
+                                videoController.play();
+                              }
+                            });
+                          },
+                        ),
+                        if (!_isLiveStream) ...[
+                          const SizedBox(width: 14),
+                          IconButton(
+                            iconSize: 40,
+                            color: Colors.white,
+                            icon: const Icon(Icons.forward_10_sharp),
+                            onPressed: () => jumpSeconds(10),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                  ],
+                ),
               ),
-            )
           ],
         ),
       ),
