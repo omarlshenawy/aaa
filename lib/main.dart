@@ -28,6 +28,52 @@ class MyApp extends StatelessWidget {
   }
 }
 
+class DebugOverlay extends StatelessWidget {
+  final String lastKey;
+  final String lastKeyCode;
+
+  const DebugOverlay({super.key, required this.lastKey, required this.lastKeyCode});
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      bottom: 10,
+      right: 10,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.black87,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.orange, width: 2),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              "🔍 DEBUG - Remote Keys",
+              style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 12),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              "Key: $lastKey",
+              style: const TextStyle(color: Colors.white, fontSize: 11),
+            ),
+            Text(
+              "Code: $lastKeyCode",
+              style: const TextStyle(color: Colors.white70, fontSize: 10),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              "Press any remote button",
+              style: TextStyle(color: Colors.white38, fontSize: 9),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 // Focusable card optimized for TV remote
 class FocusableMovieCard extends StatefulWidget {
   final Map<String, String> movie;
@@ -248,7 +294,11 @@ class _MovieListPageState extends State<MovieListPage> {
   int _selectedIndex = 0;
   int _cardsPerRow = 5;
   late FocusNode _pageFocusNode;
-  final GlobalKey _gridKey = GlobalKey();
+
+  // Debug variables
+  String _lastKeyPressed = "None";
+  String _lastKeyCode = "None";
+  bool _showDebug = true; // Set to false to hide debug overlay
 
   @override
   void initState() {
@@ -321,7 +371,6 @@ class _MovieListPageState extends State<MovieListPage> {
       _selectedIndex = newIndex;
     });
 
-    // Auto-scroll to keep selected card in view
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
         final cardHeight = 280.0;
@@ -339,17 +388,89 @@ class _MovieListPageState extends State<MovieListPage> {
 
   void _handleKeyEvent(RawKeyEvent event) {
     if (event is RawKeyDownEvent) {
+      // Debug: Print all key information to console
+      print("=== TV Remote Key Debug ===");
+      print("Key Label: ${event.logicalKey.keyLabel}");
+      print("Key ID: ${event.logicalKey.keyId}");
+      print("isMetaPressed: ${event.isMetaPressed}");
+      print("isControlPressed: ${event.isControlPressed}");
+      print("isAltPressed: ${event.isAltPressed}");
+      print("isShiftPressed: ${event.isShiftPressed}");
+      print("Physical Key: ${event.physicalKey}");
+      print("Character: ${event.character}");
+
+      // Update debug display
+      setState(() {
+        _lastKeyPressed = event.logicalKey.keyLabel.isNotEmpty
+            ? event.logicalKey.keyLabel
+            : "Unlabeled Key";
+        _lastKeyCode = "ID: ${event.logicalKey.keyId}";
+      });
+
       final totalCards = movies.length;
       final logicalKey = event.logicalKey;
 
-      // Handle D-pad navigation (works with all TV remotes)
-      if (logicalKey == LogicalKeyboardKey.arrowRight) {
+      // Try multiple ways to detect arrow keys
+      bool isArrowRight = false;
+      bool isArrowLeft = false;
+      bool isArrowDown = false;
+      bool isArrowUp = false;
+
+      // Method 1: Check by keyLabel
+      if (logicalKey.keyLabel == "ArrowRight") isArrowRight = true;
+      if (logicalKey.keyLabel == "ArrowLeft") isArrowLeft = true;
+      if (logicalKey.keyLabel == "ArrowDown") isArrowDown = true;
+      if (logicalKey.keyLabel == "ArrowUp") isArrowUp = true;
+
+      // Method 2: Check by keyId ranges (common for TV remotes)
+      // Different TV remotes send different key codes
+      final keyId = logicalKey.keyId;
+
+      // Common key codes for arrows on various platforms
+      if (keyId == 0x100000001 || keyId == 39 || keyId == 0x00000039 ||
+          keyId == 0x10000007A || keyId == 0x0000007A ||
+          logicalKey == LogicalKeyboardKey.arrowRight) {
+        isArrowRight = true;
+      }
+
+      if (keyId == 0x100000002 || keyId == 37 || keyId == 0x00000037 ||
+          keyId == 0x10000007B || keyId == 0x0000007B ||
+          logicalKey == LogicalKeyboardKey.arrowLeft) {
+        isArrowLeft = true;
+      }
+
+      if (keyId == 0x100000003 || keyId == 40 || keyId == 0x00000040 ||
+          keyId == 0x10000007C || keyId == 0x0000007C ||
+          logicalKey == LogicalKeyboardKey.arrowDown) {
+        isArrowDown = true;
+      }
+
+      if (keyId == 0x100000004 || keyId == 38 || keyId == 0x00000038 ||
+          keyId == 0x10000007D || keyId == 0x0000007D ||
+          logicalKey == LogicalKeyboardKey.arrowUp) {
+        isArrowUp = true;
+      }
+
+      // Method 3: Check by physical key
+      final physicalKey = event.physicalKey;
+      if (physicalKey.usbHidUsage == 0x07 || physicalKey.usbHidUsage == 0x4F) isArrowRight = true;
+      if (physicalKey.usbHidUsage == 0x04 || physicalKey.usbHidUsage == 0x50) isArrowLeft = true;
+      if (physicalKey.usbHidUsage == 0x06 || physicalKey.usbHidUsage == 0x51) isArrowDown = true;
+      if (physicalKey.usbHidUsage == 0x05 || physicalKey.usbHidUsage == 0x52) isArrowUp = true;
+
+      print("Detected - Right: $isArrowRight, Left: $isArrowLeft, Down: $isArrowDown, Up: $isArrowUp");
+
+      // Now handle the navigation based on detection
+      if (isArrowRight) {
+        print("✅ NAVIGATION: Moving RIGHT");
         _navigateToMovie(_selectedIndex + 1);
       }
-      else if (logicalKey == LogicalKeyboardKey.arrowLeft) {
+      else if (isArrowLeft) {
+        print("✅ NAVIGATION: Moving LEFT");
         _navigateToMovie(_selectedIndex - 1);
       }
-      else if (logicalKey == LogicalKeyboardKey.arrowDown) {
+      else if (isArrowDown) {
+        print("✅ NAVIGATION: Moving DOWN");
         final nextRowIndex = _selectedIndex + _cardsPerRow;
         if (nextRowIndex < totalCards) {
           final columnInRow = _selectedIndex % _cardsPerRow;
@@ -361,7 +482,8 @@ class _MovieListPageState extends State<MovieListPage> {
           }
         }
       }
-      else if (logicalKey == LogicalKeyboardKey.arrowUp) {
+      else if (isArrowUp) {
+        print("✅ NAVIGATION: Moving UP");
         final prevRowIndex = _selectedIndex - _cardsPerRow;
         if (prevRowIndex >= 0) {
           final columnInRow = _selectedIndex % _cardsPerRow;
@@ -375,9 +497,17 @@ class _MovieListPageState extends State<MovieListPage> {
       }
       else if (logicalKey == LogicalKeyboardKey.select ||
           logicalKey == LogicalKeyboardKey.enter ||
-          logicalKey == LogicalKeyboardKey.space) {
+          logicalKey == LogicalKeyboardKey.space ||
+          logicalKey.keyLabel == "Enter" ||
+          logicalKey.keyLabel == "Select") {
+        print("✅ NAVIGATION: SELECT/ENTER pressed");
         _openMovieDetail();
       }
+      else {
+        print("⚠️ Unknown key pressed: ${logicalKey.keyLabel} (ID: $keyId)");
+      }
+
+      print("===========================");
     }
   }
 
@@ -392,7 +522,6 @@ class _MovieListPageState extends State<MovieListPage> {
           },
         ),
       ).then((_) {
-        // Refocus when returning
         FocusScope.of(context).requestFocus(_pageFocusNode);
       });
     }
@@ -439,94 +568,235 @@ class _MovieListPageState extends State<MovieListPage> {
           ),
         ),
       ),
-      body: RawKeyboardListener(
-        focusNode: _pageFocusNode,
-        autofocus: true,
-        onKey: _handleKeyEvent,
-        child: Container(
-          key: _gridKey,
-          child: isLoading
-              ? Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  width: 80,
-                  height: 80,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(20),
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFFFF6B00), Color(0xFFFFD700)],
+      body: Stack(
+        children: [
+          RawKeyboardListener(
+            focusNode: _pageFocusNode,
+            autofocus: true,
+            onKey: _handleKeyEvent,
+            child: Container(
+              child: isLoading
+                  ? Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(20),
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFFF6B00), Color(0xFFFFD700)],
+                        ),
+                      ),
+                      child: const Padding(
+                        padding: EdgeInsets.all(16.0),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 4,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      ),
                     ),
+                    const SizedBox(height: 30),
+                    const Text(
+                      "Loading Movies...",
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 20,
+                        letterSpacing: 2,
+                      ),
+                    ),
+                  ],
+                ),
+              )
+                  : error != null
+                  ? Center(
+                child: Container(
+                  padding: const EdgeInsets.all(30),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.red.withOpacity(0.3)),
                   ),
-                  child: const Padding(
-                    padding: EdgeInsets.all(16.0),
-                    child: CircularProgressIndicator(
-                      strokeWidth: 4,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.error_outline, color: Colors.red, size: 60),
+                      const SizedBox(height: 20),
+                      Text(
+                        error!,
+                        style: const TextStyle(color: Colors.red, fontSize: 18),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+              )
+                  : LayoutBuilder(
+                builder: (context, constraints) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+                    child: GridView.builder(
+                      controller: _scrollController,
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: _cardsPerRow,
+                        crossAxisSpacing: 30,
+                        mainAxisSpacing: 30,
+                        childAspectRatio: 0.7,
+                      ),
+                      itemCount: movies.length,
+                      itemBuilder: (context, index) {
+                        return _buildMovieCard(index);
+                      },
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+          // Debug overlay
+          if (_showDebug)
+            DebugOverlay(
+              lastKey: _lastKeyPressed,
+              lastKeyCode: _lastKeyCode,
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMovieCard(int index) {
+    final movie = movies[index];
+    final isFocused = _selectedIndex == index;
+
+    return GestureDetector(
+      onTap: _openMovieDetail,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeOutCubic,
+        transform: Matrix4.identity()..scale(isFocused ? 1.05 : 1.0),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          border: isFocused
+              ? Border.all(color: const Color(0xFFFF6B00), width: 4)
+              : null,
+          boxShadow: isFocused
+              ? [
+            BoxShadow(
+              color: const Color(0xFFFF6B00).withOpacity(0.8),
+              blurRadius: 40,
+              spreadRadius: 10,
+            ),
+          ]
+              : [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.4),
+              blurRadius: 10,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(18),
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: isFocused
+                    ? [const Color(0xFFFF6B00), const Color(0xFF1A1A1A)]
+                    : [const Color(0xFF2A2A2A), const Color(0xFF1E1E1E)],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Flexible(
+                  flex: 3,
+                  child: Container(
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.black.withOpacity(0.2),
+                          Colors.black.withOpacity(0.8),
+                        ],
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                      ),
+                    ),
+                    child: Center(
+                      child: Icon(
+                        Icons.movie_filter,
+                        size: isFocused ? 100 : 80,
+                        color: Colors.white.withOpacity(0.8),
+                      ),
                     ),
                   ),
                 ),
-                const SizedBox(height: 30),
-                const Text(
-                  "Loading Movies...",
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 20,
-                    letterSpacing: 2,
+                Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFFFF6B00), Color(0xFFFF8C00)],
+                          ),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          "EP ${movie["episode"]}",
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Center(
+                        child: Text(
+                          movie["title"] ?? "",
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: isFocused ? 20 : 18,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      AnimatedOpacity(
+                        duration: const Duration(milliseconds: 200),
+                        opacity: isFocused ? 1 : 0,
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.play_arrow,
+                                color: Colors.white, size: 16),
+                            SizedBox(width: 4),
+                            Text(
+                              "PRESS • OK",
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
-          )
-              : error != null
-              ? Center(
-            child: Container(
-              padding: const EdgeInsets.all(30),
-              decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.red.withOpacity(0.3)),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.error_outline, color: Colors.red, size: 60),
-                  const SizedBox(height: 20),
-                  Text(
-                    error!,
-                    style: const TextStyle(color: Colors.red, fontSize: 18),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            ),
-          )
-              : LayoutBuilder(
-            builder: (context, constraints) {
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
-                child: GridView.builder(
-                  controller: _scrollController,
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: _cardsPerRow,
-                    crossAxisSpacing: 30,
-                    mainAxisSpacing: 30,
-                    childAspectRatio: 0.7,
-                  ),
-                  itemCount: movies.length,
-                  itemBuilder: (context, index) {
-                    return FocusableMovieCard(
-                      movie: movies[index],
-                      index: index,
-                      isFocused: _selectedIndex == index,
-                      onTap: _openMovieDetail,
-                      onFocus: () => _navigateToMovie(index),
-                    );
-                  },
-                ),
-              );
-            },
           ),
         ),
       ),
