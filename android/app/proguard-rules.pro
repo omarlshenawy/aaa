@@ -1,3 +1,0 @@
--keep class com.google.gson.** { *; }
--keep class io.flutter.** { *; }
--dontwarn io.flutter.**
