@@ -29,83 +29,133 @@ class MyApp extends StatelessWidget {
   }
 }
 
-// JavaScript interop for TV remote keys
-class TVRemoteHandler {
-  static late Function _onKeyCallback;
+// Samsung Tizen TV Remote Handler
+class TizenTVRemoteHandler {
+  static late Function(String key, int keyCode) _onKeyPress;
+  static bool _initialized = false;
 
-  static void init(Function(String key) onKeyPress) {
-    _onKeyCallback = onKeyPress;
+  static void init(Function(String key, int keyCode) onKeyPress) {
+    _onKeyPress = onKeyPress;
 
-    // Register JavaScript event listeners
+    if (_initialized) return;
+    _initialized = true;
+
+    // Register JavaScript for Tizen TV
     js.context.callMethod('eval', ['''
       (function() {
-        // For Samsung and LG TVs
+        console.log('Tizen TV Remote Handler Initializing...');
+        
+        // Check if running on Tizen
+        var isTizen = typeof tizen !== 'undefined';
+        
+        // Key code mapping for Samsung TVs
+        var keyMap = {
+          37: 'ArrowLeft',
+          38: 'ArrowUp', 
+          39: 'ArrowRight',
+          40: 'ArrowDown',
+          13: 'Enter',
+          10009: 'Back',  // Samsung Return key
+          461: 'Back',    // Alternative back key
+          457: 'Menu',
+          403: 'Red',
+          404: 'Green', 
+          405: 'Yellow',
+          406: 'Blue',
+          427: 'ChannelUp',
+          428: 'ChannelDown',
+          448: 'VolumeDown',
+          447: 'VolumeUp',
+          415: 'Play',
+          411: 'Pause',
+          503: 'PlayPause',
+          412: 'Rewind',
+          417: 'FastForward',
+          10000: 'Enter',  // Samsung OK button often uses this
+          10001: 'Menu',
+          10002: 'Back'
+        };
+        
+        // Register additional keys with Tizen API if available
+        if (isTizen && tizen.tvinputdevice) {
+          console.log('Tizen TV Input Device API available');
+          
+          // Get supported keys and register them
+          try {
+            var supportedKeys = tizen.tvinputdevice.getSupportedKeys();
+            console.log('Supported keys:', supportedKeys);
+            
+            // Register common keys
+            var keysToRegister = [
+              'ChannelUp', 'ChannelDown', 'VolumeUp', 'VolumeDown',
+              'ColorF0Red', 'ColorF1Green', 'ColorF2Yellow', 'ColorF3Blue',
+              'Play', 'Pause', 'Stop', 'Rewind', 'FastForward'
+            ];
+            
+            for (var i = 0; i < keysToRegister.length; i++) {
+              try {
+                tizen.tvinputdevice.registerKey(keysToRegister[i]);
+                console.log('Registered key:', keysToRegister[i]);
+              } catch(e) {
+                console.log('Failed to register key:', keysToRegister[i], e);
+              }
+            }
+          } catch(e) {
+            console.log('Error registering keys:', e);
+          }
+        }
+        
+        // Main keydown event listener
         document.addEventListener('keydown', function(event) {
-          var key = '';
           var keyCode = event.keyCode || event.which;
+          var keyName = keyMap[keyCode] || 'Unknown_' + keyCode;
           
-          // Map common TV remote codes
-          switch(keyCode) {
-            case 37: key = 'ArrowLeft'; break;
-            case 38: key = 'ArrowUp'; break;
-            case 39: key = 'ArrowRight'; break;
-            case 40: key = 'ArrowDown'; break;
-            case 13: key = 'Enter'; break;
-            case 32: key = 'Space'; break;
-            // Samsung TV specific
-            case 10009: key = 'ArrowLeft'; break;
-            case 10010: key = 'ArrowUp'; break;
-            case 10011: key = 'ArrowRight'; break;
-            case 10012: key = 'ArrowDown'; break;
-            case 10000: key = 'Enter'; break;
-            // LG TV specific
-            case 8: key = 'Backspace'; break;
-            case 461: key = 'ArrowLeft'; break;
-            case 462: key = 'ArrowUp'; break;
-            case 463: key = 'ArrowRight'; break;
-            case 464: key = 'ArrowDown'; break;
-            case 13: key = 'Enter'; break;
-            // Android TV / Fire TV
-            case 19: key = 'ArrowUp'; break;
-            case 20: key = 'ArrowDown'; break;
-            case 21: key = 'ArrowLeft'; break;
-            case 22: key = 'ArrowRight'; break;
-            case 23: key = 'Enter'; break;
-            case 66: key = 'Enter'; break;
-            default: key = 'Key_' + keyCode;
+          console.log('Key pressed - Code:', keyCode, 'Name:', keyName);
+          
+          // Call Flutter handler if registered
+          if (window.tizenKeyHandler) {
+            window.tizenKeyHandler(keyName, keyCode);
           }
           
-          // Call Flutter function
-          if(window.keyPressHandler) {
-            window.keyPressHandler(key);
+          // Prevent default browser behavior for TV keys
+          var blockKeys = [37,38,39,40,13,10009,461,427,428,447,448];
+          if (blockKeys.indexOf(keyCode) !== -1) {
+            event.preventDefault();
+            return false;
           }
-          
-          event.preventDefault();
-          return false;
         });
         
-        // Also listen for keyup for better compatibility
+        // Also listen for keyup to prevent double events
         document.addEventListener('keyup', function(event) {
-          event.preventDefault();
-          return false;
+          var blockKeys = [37,38,39,40,13,10009,461];
+          if (blockKeys.indexOf(event.keyCode) !== -1) {
+            event.preventDefault();
+            return false;
+          }
         });
         
-        console.log('TV Remote handler initialized');
+        console.log('Tizen TV Remote Handler Ready');
+        
+        // Log environment info
+        console.log('Platform:', navigator.platform);
+        console.log('User Agent:', navigator.userAgent);
+        console.log('Tizen available:', isTizen);
       })();
     ''']);
 
-    // Register callback in JavaScript
-    js.context['keyPressHandler'] = (String key) {
-      _onKeyCallback(key);
+    // Register callback
+    js.context['tizenKeyHandler'] = (String key, int keyCode) {
+      _onKeyPress(key, keyCode);
     };
   }
 
   static void dispose() {
     js.context.callMethod('eval', ['''
-      if(window.keyPressHandler) {
-        delete window.keyPressHandler;
+      if (window.tizenKeyHandler) {
+        delete window.tizenKeyHandler;
       }
     ''']);
+    _initialized = false;
   }
 }
 
@@ -123,38 +173,59 @@ class _MovieListPageState extends State<MovieListPage> {
   final ScrollController _scrollController = ScrollController();
   int _selectedIndex = 0;
   int _cardsPerRow = 5;
-  late FocusNode _pageFocusNode;
 
-  // For debugging
-  String _lastKeyPressed = "None";
+  // Debug info
+  String _lastKey = "None";
+  int _lastKeyCode = 0;
+  String _tizenStatus = "Checking...";
   bool _showDebug = true;
 
   @override
   void initState() {
     super.initState();
-    _pageFocusNode = FocusNode();
     fetchMovies();
 
-    // Initialize TV remote handler
-    TVRemoteHandler.init(_handleTVKeyPress);
+    // Initialize Tizen TV remote handler
+    TizenTVRemoteHandler.init(_handleTVKeyPress);
+
+    // Check if running on Tizen
+    _checkTizenEnvironment();
   }
 
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    _pageFocusNode.dispose();
-    TVRemoteHandler.dispose();
-    super.dispose();
+  void _checkTizenEnvironment() {
+    // Use JavaScript to check Tizen environment
+    js.context.callMethod('eval', ['''
+      (function() {
+        var status = 'Not Tizen';
+        if (typeof tizen !== 'undefined') {
+          status = 'Tizen TV Detected!';
+        } else if (navigator.userAgent.indexOf('Tizen') !== -1) {
+          status = 'Tizen Browser Detected';
+        } else {
+          status = 'Standard Browser';
+        }
+        if (window.tizenKeyHandlerStatus) {
+          window.tizenKeyHandlerStatus(status);
+        }
+      })();
+    ''']);
+
+    js.context['tizenKeyHandlerStatus'] = (String status) {
+      setState(() {
+        _tizenStatus = status;
+      });
+    };
   }
 
-  void _handleTVKeyPress(String key) {
-    print("TV Remote Key Pressed: $key");
+  void _handleTVKeyPress(String key, int keyCode) {
+    print("Tizen TV Key: $key (Code: $keyCode)");
 
     setState(() {
-      _lastKeyPressed = key;
+      _lastKey = key;
+      _lastKeyCode = keyCode;
     });
 
-    // Handle navigation
+    // Handle navigation based on key
     switch(key) {
       case 'ArrowRight':
         _navigateToMovie(_selectedIndex + 1);
@@ -163,20 +234,30 @@ class _MovieListPageState extends State<MovieListPage> {
         _navigateToMovie(_selectedIndex - 1);
         break;
       case 'ArrowDown':
+      case 'ChannelDown':
         _navigateDown();
         break;
       case 'ArrowUp':
+      case 'ChannelUp':
         _navigateUp();
         break;
       case 'Enter':
-      case 'Space':
         _openMovieDetail();
         break;
-      case 'Backspace':
-      // Optional: go back if needed
+      case 'Back':
+      // Optional: handle back button
+        if (Navigator.canPop(context)) {
+          Navigator.pop(context);
+        }
+        break;
+      case 'PlayPause':
+      case 'Play':
+      case 'Pause':
+      // These will be handled in video player
+        print('Media key pressed: $key');
         break;
       default:
-        print("Unknown key: $key");
+        print('Unhandled key: $key');
     }
   }
 
@@ -195,12 +276,11 @@ class _MovieListPageState extends State<MovieListPage> {
   }
 
   void _navigateUp() {
-    final totalCards = movies.length;
     final prevRowIndex = _selectedIndex - _cardsPerRow;
     if (prevRowIndex >= 0) {
       final columnInRow = _selectedIndex % _cardsPerRow;
       final targetIndex = prevRowIndex + columnInRow;
-      if (targetIndex < totalCards) {
+      if (targetIndex < movies.length) {
         _navigateToMovie(targetIndex);
       } else {
         _navigateToMovie(prevRowIndex);
@@ -212,6 +292,13 @@ class _MovieListPageState extends State<MovieListPage> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     _updateCardsPerRow();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    TizenTVRemoteHandler.dispose();
+    super.dispose();
   }
 
   void _updateCardsPerRow() {
@@ -290,11 +377,7 @@ class _MovieListPageState extends State<MovieListPage> {
             return FadeTransition(opacity: animation, child: child);
           },
         ),
-      ).then((_) {
-        if (mounted) {
-          FocusScope.of(context).requestFocus(_pageFocusNode);
-        }
-      });
+      );
     }
   }
 
@@ -341,100 +424,97 @@ class _MovieListPageState extends State<MovieListPage> {
       ),
       body: Stack(
         children: [
-          Container(
-            child: isLoading
-                ? Center(
+          // Main content
+          isLoading
+              ? Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(20),
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFFF6B00), Color(0xFFFFD700)],
+                    ),
+                  ),
+                  child: const Padding(
+                    padding: EdgeInsets.all(16.0),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 4,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 30),
+                const Text(
+                  "Loading Movies...",
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 20,
+                    letterSpacing: 2,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  "Tizen Status: $_tizenStatus",
+                  style: const TextStyle(
+                    color: Colors.white38,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          )
+              : error != null
+              ? Center(
+            child: Container(
+              padding: const EdgeInsets.all(30),
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.red.withOpacity(0.3)),
+              ),
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Container(
-                    width: 80,
-                    height: 80,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(20),
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFFFF6B00), Color(0xFFFFD700)],
-                      ),
-                    ),
-                    child: const Padding(
-                      padding: EdgeInsets.all(16.0),
-                      child: CircularProgressIndicator(
-                        strokeWidth: 4,
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 30),
-                  const Text(
-                    "Loading Movies...",
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 20,
-                      letterSpacing: 2,
-                    ),
-                  ),
+                  const Icon(Icons.error_outline, color: Colors.red, size: 60),
                   const SizedBox(height: 20),
-                  const Text(
-                    "Use remote arrows to navigate",
-                    style: TextStyle(
-                      color: Colors.white38,
-                      fontSize: 14,
-                    ),
+                  Text(
+                    error!,
+                    style: const TextStyle(color: Colors.red, fontSize: 18),
+                    textAlign: TextAlign.center,
                   ),
                 ],
               ),
-            )
-                : error != null
-                ? Center(
-              child: Container(
-                padding: const EdgeInsets.all(30),
-                decoration: BoxDecoration(
-                  color: Colors.red.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.red.withOpacity(0.3)),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.error_outline, color: Colors.red, size: 60),
-                    const SizedBox(height: 20),
-                    Text(
-                      error!,
-                      style: const TextStyle(color: Colors.red, fontSize: 18),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
+            ),
+          )
+              : Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+            child: GridView.builder(
+              controller: _scrollController,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: _cardsPerRow,
+                crossAxisSpacing: 30,
+                mainAxisSpacing: 30,
+                childAspectRatio: 0.7,
               ),
-            )
-                : LayoutBuilder(
-              builder: (context, constraints) {
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
-                  child: GridView.builder(
-                    controller: _scrollController,
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: _cardsPerRow,
-                      crossAxisSpacing: 30,
-                      mainAxisSpacing: 30,
-                      childAspectRatio: 0.7,
-                    ),
-                    itemCount: movies.length,
-                    itemBuilder: (context, index) {
-                      return _buildMovieCard(index);
-                    },
-                  ),
-                );
+              itemCount: movies.length,
+              itemBuilder: (context, index) {
+                return _buildMovieCard(index);
               },
             ),
           ),
-          // Debug overlay
+
+          // Debug overlay for Samsung TV
           if (_showDebug)
             Positioned(
               bottom: 10,
               right: 10,
               child: Container(
                 padding: const EdgeInsets.all(12),
+                constraints: const BoxConstraints(maxWidth: 250),
                 decoration: BoxDecoration(
                   color: Colors.black87,
                   borderRadius: BorderRadius.circular(8),
@@ -445,17 +525,22 @@ class _MovieListPageState extends State<MovieListPage> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     const Text(
-                      "🔍 TV REMOTE DEBUG",
+                      "📺 SAMSUNG TIZEN DEBUG",
                       style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 11),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      "Last Key: $_lastKeyPressed",
+                      "Status: $_tizenStatus",
+                      style: const TextStyle(color: Colors.white70, fontSize: 10),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      "Last Key: $_lastKey (Code: $_lastKeyCode)",
                       style: const TextStyle(color: Colors.white, fontSize: 10),
                     ),
                     const SizedBox(height: 4),
                     const Text(
-                      "Press remote buttons",
+                      "Use D-pad to navigate • OK to select",
                       style: TextStyle(color: Colors.white38, fontSize: 9),
                     ),
                   ],
@@ -606,7 +691,7 @@ class _MovieListPageState extends State<MovieListPage> {
   }
 }
 
-// Keep the same MovieDetailPage from previous version (with similar remote handling)
+// MovieDetailPage - Keep from previous version with same Tizen handling
 class MovieDetailPage extends StatefulWidget {
   final Map<String, String> movie;
   const MovieDetailPage({super.key, required this.movie});
@@ -617,7 +702,6 @@ class MovieDetailPage extends StatefulWidget {
 
 class _MovieDetailPageState extends State<MovieDetailPage> {
   late VideoPlayerController videoController;
-  final FocusNode _focusNode = FocusNode();
   bool _isLiveStream = false;
   bool _isInitialized = false;
   String? _errorMessage;
@@ -628,29 +712,21 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
   void initState() {
     super.initState();
     _initializeVideo();
-    // Setup remote handler for video page
-    TVRemoteHandler.init(_handleTVKeyPress);
-    Future.delayed(const Duration(milliseconds: 500), () {
-      if (mounted) {
-        FocusScope.of(context).requestFocus(_focusNode);
-      }
-    });
+    TizenTVRemoteHandler.init(_handleTVKeyPress);
   }
 
   @override
   void dispose() {
     _controlsTimer?.cancel();
     videoController.dispose();
-    _focusNode.dispose();
     super.dispose();
   }
 
-  void _handleTVKeyPress(String key) {
-    print("Video Remote Key: $key");
+  void _handleTVKeyPress(String key, int keyCode) {
+    print("Video Player Key: $key (Code: $keyCode)");
 
     switch(key) {
       case 'Enter':
-      case 'Space':
         if (videoController.value.isPlaying) {
           videoController.pause();
         } else {
@@ -660,19 +736,34 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
         setState(() {});
         break;
       case 'ArrowLeft':
+      case 'Rewind':
         if (!_isLiveStream) jumpSeconds(-10);
         break;
       case 'ArrowRight':
+      case 'FastForward':
         if (!_isLiveStream) jumpSeconds(10);
         break;
       case 'ArrowDown':
+      case 'ChannelDown':
         if (!_isLiveStream) jumpSeconds(-30);
         break;
       case 'ArrowUp':
+      case 'ChannelUp':
         if (!_isLiveStream) jumpSeconds(30);
         break;
-      case 'Backspace':
+      case 'Back':
         Navigator.pop(context);
+        break;
+      case 'PlayPause':
+      case 'Play':
+      case 'Pause':
+        if (videoController.value.isPlaying) {
+          videoController.pause();
+        } else {
+          videoController.play();
+        }
+        _toggleControls();
+        setState(() {});
         break;
     }
   }
@@ -1009,7 +1100,7 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
                       const SizedBox(height: 8),
                       Center(
                         child: Text(
-                          "REMOTE: ▲▼ (30s)  ◀▶ (10s)  OK (Play/Pause)",
+                          "Samsung Remote: ▲▼ (30s)  ◀▶ (10s)  OK (Play/Pause)",
                           style: TextStyle(
                             color: Colors.white54,
                             fontSize: 13,
