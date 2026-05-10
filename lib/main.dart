@@ -222,6 +222,36 @@ class _MovieListPageState extends State<MovieListPage> {
   int _cardsPerRow = 5;
   late FocusNode _pageFocusNode;
 
+  bool isSelectKey(LogicalKeyboardKey key) {
+    return key == LogicalKeyboardKey.select ||
+        key == LogicalKeyboardKey.enter ||
+        key == LogicalKeyboardKey.numpadEnter ||
+        key == LogicalKeyboardKey.space ||
+        key == LogicalKeyboardKey.gameButtonA;
+  }
+
+  bool isLeftKey(LogicalKeyboardKey key) {
+    return key == LogicalKeyboardKey.arrowLeft;
+  }
+
+  bool isRightKey(LogicalKeyboardKey key) {
+    return key == LogicalKeyboardKey.arrowRight;
+  }
+
+  bool isUpKey(LogicalKeyboardKey key) {
+    return key == LogicalKeyboardKey.arrowUp;
+  }
+
+  bool isDownKey(LogicalKeyboardKey key) {
+    return key == LogicalKeyboardKey.arrowDown;
+  }
+
+  bool isBackKey(LogicalKeyboardKey key) {
+    return key == LogicalKeyboardKey.escape ||
+        key == LogicalKeyboardKey.goBack ||
+        key == LogicalKeyboardKey.browserBack;
+  }
+
   @override
   void initState() {
     super.initState();
