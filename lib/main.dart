@@ -28,7 +28,7 @@ class MyApp extends StatelessWidget {
   }
 }
 
-// Custom focusable card widget for TV navigation
+// Focusable card optimized for TV remote
 class FocusableMovieCard extends StatefulWidget {
   final Map<String, String> movie;
   final int index;
@@ -50,153 +50,180 @@ class FocusableMovieCard extends StatefulWidget {
 }
 
 class _FocusableMovieCardState extends State<FocusableMovieCard> {
+  final FocusNode _focusNode = FocusNode();
   bool _isHovered = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode.addListener(() {
+      if (_focusNode.hasFocus) {
+        widget.onFocus();
+        setState(() {});
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Focus(
-      focusNode: FocusNode(),
-      onFocusChange: (hasFocus) {
-        if (hasFocus) {
-          widget.onFocus();
-          setState(() {});
+      focusNode: _focusNode,
+      canRequestFocus: true,
+      skipTraversal: false,
+      onKey: (node, event) {
+        if (event is RawKeyDownEvent) {
+          // Handle enter/select on remote
+          if (event.logicalKey == LogicalKeyboardKey.select ||
+              event.logicalKey == LogicalKeyboardKey.enter ||
+              event.logicalKey == LogicalKeyboardKey.space) {
+            widget.onTap();
+            return KeyEventResult.handled;
+          }
         }
+        return KeyEventResult.ignored;
       },
       child: MouseRegion(
         onEnter: (_) => setState(() => _isHovered = true),
         onExit: (_) => setState(() => _isHovered = false),
-        child: GestureDetector(
-          onTap: widget.onTap,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeOutCubic,
-            transform: Matrix4.identity()..scale(widget.isFocused ? 1.05 : 1.0),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: widget.isFocused
-                  ? [
-                BoxShadow(
-                  color: const Color(0xFFFF6B00).withOpacity(0.8),
-                  blurRadius: 30,
-                  spreadRadius: 5,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          curve: Curves.easeOutCubic,
+          transform: Matrix4.identity()..scale(widget.isFocused ? 1.05 : 1.0),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            border: widget.isFocused
+                ? Border.all(color: const Color(0xFFFF6B00), width: 4)
+                : null,
+            boxShadow: widget.isFocused
+                ? [
+              BoxShadow(
+                color: const Color(0xFFFF6B00).withOpacity(0.8),
+                blurRadius: 40,
+                spreadRadius: 10,
+              ),
+            ]
+                : _isHovered
+                ? [
+              BoxShadow(
+                color: const Color(0xFFFF6B00).withOpacity(0.4),
+                blurRadius: 20,
+                spreadRadius: 2,
+              ),
+            ]
+                : [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.4),
+                blurRadius: 10,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(18),
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: widget.isFocused
+                      ? [const Color(0xFFFF6B00), const Color(0xFF1A1A1A)]
+                      : [const Color(0xFF2A2A2A), const Color(0xFF1E1E1E)],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
                 ),
-              ]
-                  : _isHovered
-                  ? [
-                BoxShadow(
-                  color: const Color(0xFFFF6B00).withOpacity(0.4),
-                  blurRadius: 20,
-                  spreadRadius: 2,
-                ),
-              ]
-                  : [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.4),
-                  blurRadius: 10,
-                  offset: const Offset(0, 6),
-                ),
-              ],
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(20),
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: widget.isFocused
-                        ? [const Color(0xFFFF6B00), const Color(0xFF1A1A1A)]
-                        : [const Color(0xFF2A2A2A), const Color(0xFF1E1E1E)],
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Flexible(
+                    flex: 3,
+                    child: Container(
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.black.withOpacity(0.2),
+                            Colors.black.withOpacity(0.8),
+                          ],
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                        ),
+                      ),
+                      child: Center(
+                        child: Icon(
+                          Icons.movie_filter,
+                          size: widget.isFocused ? 100 : 80,
+                          color: Colors.white.withOpacity(0.8),
+                        ),
+                      ),
+                    ),
                   ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Flexible(
-                      flex: 3,
-                      child: Container(
-                        width: double.infinity,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              Colors.black.withOpacity(0.2),
-                              Colors.black.withOpacity(0.8),
-                            ],
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
+                  Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFFFF6B00), Color(0xFFFF8C00)],
+                            ),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            "EP ${widget.movie["episode"]}",
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
-                        child: Center(
-                          child: Icon(
-                            Icons.movie_filter,
-                            size: widget.isFocused ? 100 : 80,
-                            color: Colors.white.withOpacity(0.8),
+                        const SizedBox(height: 8),
+                        Center(
+                          child: Text(
+                            widget.movie["title"] ?? "",
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: widget.isFocused ? 20 : 18,
+                            ),
                           ),
                         ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFFFF6B00), Color(0xFFFF8C00)],
-                              ),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              "EP ${widget.movie["episode"]}",
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Center(
-                            child: Text(
-                              widget.movie["title"] ?? "",
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: widget.isFocused ? 20 : 18,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          AnimatedOpacity(
-                            duration: const Duration(milliseconds: 200),
-                            opacity: (widget.isFocused || _isHovered) ? 1 : 0,
-                            child: const Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.play_arrow,
-                                    color: Colors.white, size: 16),
-                                SizedBox(width: 4),
-                                Text(
-                                  "Press Enter to play",
-                                  style: TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 12,
-                                  ),
+                        const SizedBox(height: 6),
+                        AnimatedOpacity(
+                          duration: const Duration(milliseconds: 200),
+                          opacity: (widget.isFocused || _isHovered) ? 1 : 0,
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.play_arrow,
+                                  color: Colors.white, size: 16),
+                              SizedBox(width: 4),
+                              Text(
+                                "PRESS • OK",
+                                style: TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
                                 ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -221,36 +248,7 @@ class _MovieListPageState extends State<MovieListPage> {
   int _selectedIndex = 0;
   int _cardsPerRow = 5;
   late FocusNode _pageFocusNode;
-
-  bool isSelectKey(LogicalKeyboardKey key) {
-    return key == LogicalKeyboardKey.select ||
-        key == LogicalKeyboardKey.enter ||
-        key == LogicalKeyboardKey.numpadEnter ||
-        key == LogicalKeyboardKey.space ||
-        key == LogicalKeyboardKey.gameButtonA;
-  }
-
-  bool isLeftKey(LogicalKeyboardKey key) {
-    return key == LogicalKeyboardKey.arrowLeft;
-  }
-
-  bool isRightKey(LogicalKeyboardKey key) {
-    return key == LogicalKeyboardKey.arrowRight;
-  }
-
-  bool isUpKey(LogicalKeyboardKey key) {
-    return key == LogicalKeyboardKey.arrowUp;
-  }
-
-  bool isDownKey(LogicalKeyboardKey key) {
-    return key == LogicalKeyboardKey.arrowDown;
-  }
-
-  bool isBackKey(LogicalKeyboardKey key) {
-    return key == LogicalKeyboardKey.escape ||
-        key == LogicalKeyboardKey.goBack ||
-        key == LogicalKeyboardKey.browserBack;
-  }
+  final GlobalKey _gridKey = GlobalKey();
 
   @override
   void initState() {
@@ -326,14 +324,13 @@ class _MovieListPageState extends State<MovieListPage> {
     // Auto-scroll to keep selected card in view
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
-        final cardHeight = 280.0; // Approximate card height
+        final cardHeight = 280.0;
         final currentRow = _selectedIndex ~/ _cardsPerRow;
-        final viewportHeight = MediaQuery.of(context).size.height - 150;
-        final scrollOffset = currentRow * cardHeight;
+        final scrollOffset = (currentRow * cardHeight) - 100;
 
         _scrollController.animateTo(
           scrollOffset.clamp(0.0, _scrollController.position.maxScrollExtent),
-          duration: const Duration(milliseconds: 300),
+          duration: const Duration(milliseconds: 200),
           curve: Curves.easeOutCubic,
         );
       }
@@ -343,38 +340,42 @@ class _MovieListPageState extends State<MovieListPage> {
   void _handleKeyEvent(RawKeyEvent event) {
     if (event is RawKeyDownEvent) {
       final totalCards = movies.length;
-      final currentRow = _selectedIndex ~/ _cardsPerRow;
-      final cardsInCurrentRow =
-      (_selectedIndex + 1) <= (currentRow + 1) * _cardsPerRow
-          ? _cardsPerRow
-          : totalCards - (currentRow * _cardsPerRow);
+      final logicalKey = event.logicalKey;
 
-      if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+      // Handle D-pad navigation (works with all TV remotes)
+      if (logicalKey == LogicalKeyboardKey.arrowRight) {
         _navigateToMovie(_selectedIndex + 1);
-      } else if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+      }
+      else if (logicalKey == LogicalKeyboardKey.arrowLeft) {
         _navigateToMovie(_selectedIndex - 1);
-      } else if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+      }
+      else if (logicalKey == LogicalKeyboardKey.arrowDown) {
         final nextRowIndex = _selectedIndex + _cardsPerRow;
         if (nextRowIndex < totalCards) {
           final columnInRow = _selectedIndex % _cardsPerRow;
-          final targetIndex = nextRowIndex +
-              (columnInRow < cardsInCurrentRow ? columnInRow : 0);
-          _navigateToMovie(targetIndex.clamp(0, totalCards - 1));
+          final targetIndex = nextRowIndex + columnInRow;
+          if (targetIndex < totalCards) {
+            _navigateToMovie(targetIndex);
+          } else {
+            _navigateToMovie(nextRowIndex);
+          }
         }
-      } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+      }
+      else if (logicalKey == LogicalKeyboardKey.arrowUp) {
         final prevRowIndex = _selectedIndex - _cardsPerRow;
         if (prevRowIndex >= 0) {
           final columnInRow = _selectedIndex % _cardsPerRow;
-          final prevRowCards =
-          prevRowIndex + _cardsPerRow <= totalCards
-              ? _cardsPerRow
-              : totalCards - prevRowIndex;
-          final targetIndex = prevRowIndex +
-              (columnInRow < prevRowCards ? columnInRow : prevRowCards - 1);
-          _navigateToMovie(targetIndex.clamp(0, totalCards - 1));
+          final targetIndex = prevRowIndex + columnInRow;
+          if (targetIndex < totalCards) {
+            _navigateToMovie(targetIndex);
+          } else {
+            _navigateToMovie(prevRowIndex);
+          }
         }
-      } else if (event.logicalKey == LogicalKeyboardKey.enter ||
-          event.logicalKey == LogicalKeyboardKey.select) {
+      }
+      else if (logicalKey == LogicalKeyboardKey.select ||
+          logicalKey == LogicalKeyboardKey.enter ||
+          logicalKey == LogicalKeyboardKey.space) {
         _openMovieDetail();
       }
     }
@@ -417,17 +418,18 @@ class _MovieListPageState extends State<MovieListPage> {
             ),
           ),
           child: AppBar(
+            automaticallyImplyLeading: false,
             title: ShaderMask(
               shaderCallback: (bounds) => const LinearGradient(
                 colors: [Color(0xFFFF6B00), Color(0xFFFFD700)],
               ).createShader(bounds),
               child: const Text(
-                "Shenawys",
+                "SHENA WYS",
                 style: TextStyle(
                   color: Colors.white,
-                  fontSize: 42,
+                  fontSize: 48,
                   fontWeight: FontWeight.w900,
-                  letterSpacing: 4,
+                  letterSpacing: 6,
                 ),
               ),
             ),
@@ -441,77 +443,75 @@ class _MovieListPageState extends State<MovieListPage> {
         focusNode: _pageFocusNode,
         autofocus: true,
         onKey: _handleKeyEvent,
-        child: isLoading
-            ? Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 60,
-                height: 60,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(15),
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFFFF6B00), Color(0xFFFFD700)],
+        child: Container(
+          key: _gridKey,
+          child: isLoading
+              ? Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(20),
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFFF6B00), Color(0xFFFFD700)],
+                    ),
+                  ),
+                  child: const Padding(
+                    padding: EdgeInsets.all(16.0),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 4,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
                   ),
                 ),
-                child: const Padding(
-                  padding: EdgeInsets.all(12.0),
-                  child: CircularProgressIndicator(
-                    strokeWidth: 3,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                const SizedBox(height: 30),
+                const Text(
+                  "Loading Movies...",
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 20,
+                    letterSpacing: 2,
                   ),
                 ),
-              ),
-              const SizedBox(height: 20),
-              const Text(
-                "Loading your movies...",
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 16,
-                  letterSpacing: 1,
-                ),
-              ),
-            ],
-          ),
-        )
-            : error != null
-            ? Center(
-          child: Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.red.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(15),
-              border: Border.all(color: Colors.red.withOpacity(0.3)),
+              ],
             ),
-            child: Text(
-              error!,
-              style: const TextStyle(color: Colors.red, fontSize: 16),
-            ),
-          ),
-        )
-            : LayoutBuilder(
-          builder: (context, constraints) {
-            return Container(
+          )
+              : error != null
+              ? Center(
+            child: Container(
+              padding: const EdgeInsets.all(30),
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    const Color(0xFF0A0A0A),
-                    const Color(0xFF1A1A1A),
-                    Colors.blueGrey.shade900.withOpacity(0.3),
-                  ],
-                ),
+                color: Colors.red.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.red.withOpacity(0.3)),
               ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 40),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.error_outline, color: Colors.red, size: 60),
+                  const SizedBox(height: 20),
+                  Text(
+                    error!,
+                    style: const TextStyle(color: Colors.red, fontSize: 18),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          )
+              : LayoutBuilder(
+            builder: (context, constraints) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
                 child: GridView.builder(
                   controller: _scrollController,
                   gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: _cardsPerRow,
-                    crossAxisSpacing: 25,
-                    mainAxisSpacing: 25,
+                    crossAxisSpacing: 30,
+                    mainAxisSpacing: 30,
                     childAspectRatio: 0.7,
                   ),
                   itemCount: movies.length,
@@ -525,16 +525,16 @@ class _MovieListPageState extends State<MovieListPage> {
                     );
                   },
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
       ),
     );
   }
 }
 
-// MovieDetailPage with improved controls
+// MovieDetailPage optimized for TV remote
 class MovieDetailPage extends StatefulWidget {
   final Map<String, String> movie;
   const MovieDetailPage({super.key, required this.movie});
@@ -556,6 +556,12 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
   void initState() {
     super.initState();
     _initializeVideo();
+    // Request focus after a short delay for TV
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (mounted) {
+        FocusScope.of(context).requestFocus(_focusNode);
+      }
+    });
   }
 
   @override
@@ -583,7 +589,7 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
       videoController.addListener(() {
         if (videoController.value.hasError) {
           setState(() {
-            _errorMessage = videoController.value.errorDescription ?? 'Unknown error occurred';
+            _errorMessage = videoController.value.errorDescription ?? 'Video error occurred';
           });
         }
       });
@@ -604,14 +610,14 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
       });
     } catch (e) {
       setState(() {
-        _errorMessage = 'Failed to load video: ${e.toString()}';
+        _errorMessage = 'Failed to load video';
       });
     }
   }
 
   void _startControlsTimer() {
     _controlsTimer?.cancel();
-    _controlsTimer = Timer(const Duration(seconds: 3), () {
+    _controlsTimer = Timer(const Duration(seconds: 4), () {
       if (mounted && _showControls) {
         setState(() {
           _showControls = false;
@@ -655,9 +661,12 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
 
   void handleKey(RawKeyEvent event) {
     if (event is RawKeyDownEvent) {
-      if (event.logicalKey == LogicalKeyboardKey.select ||
-          event.logicalKey == LogicalKeyboardKey.enter ||
-          event.logicalKey == LogicalKeyboardKey.space) {
+      final logicalKey = event.logicalKey;
+
+      // Play/Pause with remote OK/Enter button
+      if (logicalKey == LogicalKeyboardKey.select ||
+          logicalKey == LogicalKeyboardKey.enter ||
+          logicalKey == LogicalKeyboardKey.space) {
         if (videoController.value.isPlaying) {
           videoController.pause();
         } else {
@@ -667,22 +676,31 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
         setState(() {});
       }
 
+      // Navigation for seeking (works with D-pad)
       if (!_isLiveStream) {
-        if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+        if (logicalKey == LogicalKeyboardKey.arrowLeft) {
           jumpSeconds(-10);
         }
-        if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+        if (logicalKey == LogicalKeyboardKey.arrowRight) {
           jumpSeconds(10);
         }
-        if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
-          jumpSeconds(-60);
+        if (logicalKey == LogicalKeyboardKey.arrowDown) {
+          jumpSeconds(-30);
         }
-        if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
-          jumpSeconds(60);
+        if (logicalKey == LogicalKeyboardKey.arrowUp) {
+          jumpSeconds(30);
         }
       }
 
-      if (event.logicalKey == LogicalKeyboardKey.keyF) {
+      // Back button on remote
+      if (logicalKey == LogicalKeyboardKey.goBack ||
+          logicalKey == LogicalKeyboardKey.backspace) {
+        Navigator.pop(context);
+      }
+
+      // Fullscreen
+      if (logicalKey == LogicalKeyboardKey.keyF ||
+          logicalKey == LogicalKeyboardKey.f1) {
         enterFullscreen();
       }
 
@@ -693,55 +711,69 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
   }
 
   String formatTime(Duration d) {
-    String two(int n) => n.toString().padLeft(2, '0');
-    final h = two(d.inHours);
-    final m = two(d.inMinutes.remainder(60));
-    final s = two(d.inSeconds.remainder(60));
-    return h == "00" ? "$m:$s" : "$h:$m:$s";
+    if (!d.isNegative && d.inSeconds > 0) {
+      String two(int n) => n.toString().padLeft(2, '0');
+      final h = two(d.inHours);
+      final m = two(d.inMinutes.remainder(60));
+      final s = two(d.inSeconds.remainder(60));
+      return h == "00" ? "$m:$s" : "$h:$m:$s";
+    }
+    return "0:00";
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      appBar: AppBar(
-        centerTitle: true,
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Flexible(
-              child: Text(
-                "${widget.movie["title"]} - EP ${widget.movie["episode"]}",
-                overflow: TextOverflow.ellipsis,
-              ),
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(70),
+        child: Container(
+          color: Colors.black.withOpacity(0.9),
+          child: SafeArea(
+            child: Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.arrow_back, size: 32, color: Colors.white),
+                  onPressed: () => Navigator.pop(context),
+                ),
+                Expanded(
+                  child: Center(
+                    child: Text(
+                      "${widget.movie["title"]} - EP ${widget.movie["episode"]}",
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+                if (_isLiveStream)
+                  Container(
+                    margin: const EdgeInsets.only(right: 16),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Text(
+                      'LIVE',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                IconButton(
+                  icon: const Icon(Icons.fullscreen, size: 32, color: Colors.white),
+                  onPressed: enterFullscreen,
+                ),
+              ],
             ),
-            if (_isLiveStream) ...[
-              const SizedBox(width: 10),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.red,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: const Text(
-                  'LIVE',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                ),
-              ),
-            ],
-          ],
+          ),
         ),
-        backgroundColor: Colors.black,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, size: 32),
-          onPressed: () => Navigator.pop(context),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.fullscreen, size: 32),
-            onPressed: enterFullscreen,
-          )
-        ],
       ),
       body: RawKeyboardListener(
         focusNode: _focusNode,
@@ -749,20 +781,25 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
         onKey: handleKey,
         child: GestureDetector(
           onTap: _toggleControls,
+          behavior: HitTestBehavior.opaque,
           child: _errorMessage != null
               ? Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.error_outline, color: Colors.red, size: 64),
-                const SizedBox(height: 16),
+                const Icon(Icons.error_outline, color: Colors.red, size: 80),
+                const SizedBox(height: 20),
                 Text(
                   _errorMessage!,
-                  style: const TextStyle(color: Colors.white, fontSize: 16),
+                  style: const TextStyle(color: Colors.white, fontSize: 18),
                   textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 30),
                 ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
+                    backgroundColor: Colors.orange,
+                  ),
                   onPressed: () {
                     setState(() {
                       _errorMessage = null;
@@ -770,7 +807,7 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
                     });
                     _initializeVideo();
                   },
-                  child: const Text('Retry'),
+                  child: const Text('RETRY', style: TextStyle(fontSize: 16)),
                 ),
               ],
             ),
@@ -791,6 +828,7 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
                         if (videoController.value.isBuffering)
                           const CircularProgressIndicator(
                             color: Colors.orange,
+                            strokeWidth: 4,
                           ),
                         AnimatedOpacity(
                           opacity: _showControls && !videoController.value.isPlaying ? 1.0 : 0.0,
@@ -798,10 +836,10 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
                           child: Container(
                             decoration: BoxDecoration(
                               color: Colors.black54,
-                              borderRadius: BorderRadius.circular(50),
+                              borderRadius: BorderRadius.circular(80),
                             ),
                             child: IconButton(
-                              iconSize: 80,
+                              iconSize: 100,
                               color: Colors.white,
                               icon: const Icon(Icons.play_arrow),
                               onPressed: () {
@@ -811,17 +849,39 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
                             ),
                           ),
                         ),
+                        Positioned(
+                          bottom: 20,
+                          left: 20,
+                          child: AnimatedOpacity(
+                            opacity: _showControls ? 1.0 : 0.0,
+                            duration: const Duration(milliseconds: 300),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: Colors.black54,
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: const Text(
+                                "▲▼ ◀▶  •  OK",
+                                style: TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   )
                       : const Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      CircularProgressIndicator(color: Colors.orange),
-                      SizedBox(height: 20),
+                      CircularProgressIndicator(color: Colors.orange, strokeWidth: 4),
+                      SizedBox(height: 30),
                       Text(
-                        'Loading video...',
-                        style: TextStyle(color: Colors.white70),
+                        'Loading Video...',
+                        style: TextStyle(color: Colors.white70, fontSize: 18),
                       ),
                     ],
                   ),
@@ -832,8 +892,9 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
                 duration: const Duration(milliseconds: 300),
                 child: Container(
                   color: Colors.black87,
+                  height: 120,
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+                    padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
                     child: Column(
                       children: [
                         if (!_isLiveStream && _isInitialized) ...[
@@ -858,97 +919,53 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
                               children: [
                                 Text(
                                   formatTime(videoController.value.position),
-                                  style: const TextStyle(color: Colors.white),
+                                  style: const TextStyle(color: Colors.white, fontSize: 14),
                                 ),
                                 Text(
                                   formatTime(videoController.value.duration),
-                                  style: const TextStyle(color: Colors.white),
+                                  style: const TextStyle(color: Colors.white, fontSize: 14),
                                 ),
                               ],
                             ),
                           ),
                         ] else if (_isLiveStream) ...[
-                           Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Container(
-                                width: 10,
-                                height: 10,
-                                decoration: BoxDecoration(
-                                  color: Colors.red,
-                                  shape: BoxShape.circle,
+                          const Center(
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                SizedBox(
+                                  width: 12,
+                                  height: 12,
+                                  child: DecoratedBox(
+                                    decoration: BoxDecoration(
+                                      color: Colors.red,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
                                 ),
-                              ),
-                              SizedBox(width: 8),
-                              Text(
-                                'LIVE STREAM',
-                                style: TextStyle(
-                                  color: Colors.red,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
+                                SizedBox(width: 12),
+                                Text(
+                                  'LIVE STREAM',
+                                  style: TextStyle(
+                                    color: Colors.red,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 18,
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ],
-                        const SizedBox(height: 15),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            if (!_isLiveStream) ...[
-                              _buildControlButton(
-                                icon: Icons.replay_30,
-                                label: "-30s",
-                                onPressed: () => jumpSeconds(-30),
-                              ),
-                              const SizedBox(width: 14),
-                              _buildControlButton(
-                                icon: Icons.replay_10,
-                                label: "-10s",
-                                onPressed: () => jumpSeconds(-10),
-                              ),
-                              const SizedBox(width: 14),
-                            ],
-                            _buildControlButton(
-                              icon: videoController.value.isPlaying ? Icons.pause : Icons.play_arrow,
-                              label: videoController.value.isPlaying ? "Pause" : "Play",
-                              iconSize: 50,
-                              color: Colors.orange,
-                              onPressed: () {
-                                setState(() {
-                                  if (videoController.value.isPlaying) {
-                                    videoController.pause();
-                                  } else {
-                                    videoController.play();
-                                  }
-                                });
-                                _toggleControls();
-                              },
+                        const SizedBox(height: 8),
+                        Center(
+                          child: Text(
+                            "REMOTE: ▲▼ (30s)  ◀▶ (10s)  OK (Play/Pause)",
+                            style: TextStyle(
+                              color: Colors.white54,
+                              fontSize: 13,
+                              letterSpacing: 1,
                             ),
-                            if (!_isLiveStream) ...[
-                              const SizedBox(width: 14),
-                              _buildControlButton(
-                                icon: Icons.forward_10,
-                                label: "+10s",
-                                onPressed: () => jumpSeconds(10),
-                              ),
-                              const SizedBox(width: 14),
-                              _buildControlButton(
-                                icon: Icons.forward_30,
-                                label: "+30s",
-                                onPressed: () => jumpSeconds(30),
-                              ),
-                            ],
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          "Remote Controls: ↑↓←→ (seek), ⏎ (play/pause), F (fullscreen)",
-                          style: TextStyle(
-                            color: Colors.white54,
-                            fontSize: 12,
                           ),
-                          textAlign: TextAlign.center,
                         ),
                       ],
                     ),
@@ -959,29 +976,6 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildControlButton({
-    required IconData icon,
-    required String label,
-    required VoidCallback onPressed,
-    double iconSize = 40,
-    Color color = Colors.white,
-  }) {
-    return Column(
-      children: [
-        IconButton(
-          iconSize: iconSize,
-          color: color,
-          icon: Icon(icon),
-          onPressed: onPressed,
-        ),
-        Text(
-          label,
-          style: TextStyle(color: Colors.white70, fontSize: 10),
-        ),
-      ],
     );
   }
 }
