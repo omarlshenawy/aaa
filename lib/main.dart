@@ -406,7 +406,7 @@ class _MovieListPageState extends State<MovieListPage> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                if(movie["episode"] == "l")
+                                if(movie["episode"] == "live")
                                   Container(
                                     padding: const EdgeInsets.symmetric(
                                         horizontal: 10, vertical: 4),
@@ -427,7 +427,7 @@ class _MovieListPageState extends State<MovieListPage> {
                                       ),
                                     ),
                                   ),
-                                if(movie["episode"] == "m")
+                                if(movie["episode"] == "")
                                   Container(
                                     padding: const EdgeInsets.symmetric(
                                         horizontal: 10, vertical: 4),
@@ -621,10 +621,7 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
       final videoUrl = widget.movie["videoUrl"]!;
 
       // Check if it's a live stream (common live stream extensions/patterns)
-      _isLiveStream = videoUrl.contains('.m3u8') ||
-          videoUrl.contains('live') ||
-          videoUrl.contains('stream') ||
-          videoUrl.contains('.ts');
+      _isLiveStream = widget.movie["episode"] == "live" ;
 
       videoController = VideoPlayerController.networkUrl(
         Uri.parse(videoUrl),
