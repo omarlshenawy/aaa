@@ -1,27 +1,12 @@
 import 'dart:convert';
-import 'dart:html' as html;
+import 'dart:html' as html; // For web fullscreen
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:video_player/video_player.dart';
 
 void main() {
-  // Configure for Tizen EWK environment
-  _configureForTizenEWK();
   runApp(const MyApp());
-}
-
-void _configureForTizenEWK() {
-  // Set up Tizen-specific configurations
-  WidgetsFlutterBinding.ensureInitialized();
-
-  // Tizen EWK often has different viewport and input handling
-  SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-  SystemChrome.setPreferredOrientations([
-    DeviceOrientation.landscapeLeft,
-    DeviceOrientation.landscapeRight,
-    DeviceOrientation.portraitUp,
-  ]);
 }
 
 class MyApp extends StatelessWidget {
@@ -44,67 +29,11 @@ class MyApp extends StatelessWidget {
         ),
       ),
       home: const MovieListPage(),
-      // Add Tizen EWK-specific navigation handling
-      builder: (context, child) {
-        return TizenEWKWrapper(child: child!);
-      },
     );
   }
 }
 
-// Tizen EWK Wrapper to handle platform-specific behavior
-class TizenEWKWrapper extends StatelessWidget {
-  final Widget child;
-
-  const TizenEWKWrapper({super.key, required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    return Shortcuts(
-      shortcuts: {
-        // Map Tizen remote control keys
-        LogicalKeySet(LogicalKeyboardKey.select): const ActivateIntent(),
-        LogicalKeySet(LogicalKeyboardKey.goBack): const DismissIntent(),
-        // Tizen TV remote specific keys
-        LogicalKeySet(LogicalKeyboardKey.mediaPlay): const ActivateIntent(),
-        LogicalKeySet(LogicalKeyboardKey.mediaPause): const ActivateIntent(),
-        LogicalKeySet(LogicalKeyboardKey.mediaStop): const DismissIntent(),
-      },
-      child: Actions(
-        actions: {
-          DismissIntent: CallbackAction<DismissIntent>(
-            onInvoke: (intent) {
-              if (Navigator.of(context).canPop()) {
-                Navigator.of(context).pop();
-              } else {
-                // Handle exit or back to Tizen home
-                _handleTizenBack();
-              }
-              return null;
-            },
-          ),
-        },
-        child: child,
-      ),
-    );
-  }
-
-  void _handleTizenBack() {
-    // Tizen EWK specific handling
-    if (html.window.navigator.userAgent.contains('Tizen')) {
-      // Use Tizen-specific API to minimize app
-      try {
-        // You might need to call tizen.application.getCurrentApplication().hide()
-        html.window.parent?.postMessage({'action': 'minimize'}, '*');
-      } catch (e) {
-        // Fallback
-        html.window.history.back();
-      }
-    }
-  }
-}
-
-// ------------------- Movie List Page (Tizen Optimized) -------------------
+// ------------------- Movie List Page -------------------
 class MovieListPage extends StatefulWidget {
   const MovieListPage({super.key});
 
@@ -118,52 +47,34 @@ class _MovieListPageState extends State<MovieListPage> {
   String? error;
   final ScrollController _scrollController = ScrollController();
   int _hoveredIndex = -1;
-  final FocusNode _pageFocusNode = FocusNode();
+  int _selectedIndex = 0; // Currently selected item index
+  final FocusNode _focusNode = FocusNode();
 
-  // Tizen EWK specific: track remote control navigation
-  int _focusedIndex = 0;
-  final Map<String, bool> _loadedImages = {};
+  // Grid configuration
+  int _crossAxisCount = 5; // Will be updated based on screen width
 
   @override
   void initState() {
     super.initState();
     fetchMovies();
-    _setupTizenListeners();
-  }
-
-  void _setupTizenListeners() {
-    // Listen for Tizen-specific events
-    html.window.onMessage.listen((event) {
-      // Handle Tizen system events if needed
-      if (event.data == 'tizen_resume') {
-        setState(() {}); // Refresh state on resume
-      }
-    });
-
-    // Add visibility change listener for Tizen
-    html.document.onVisibilityChange.listen((event) {
-      if (html.document.visibilityState == 'visible') {
-        setState(() {}); // Refresh when becoming visible
-      }
+    // Request focus after build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _focusNode.requestFocus();
     });
   }
 
   @override
   void dispose() {
     _scrollController.dispose();
-    _pageFocusNode.dispose();
+    _focusNode.dispose();
     super.dispose();
   }
 
   Future fetchMovies() async {
     try {
-      // Add timestamp to avoid Tizen EWK caching issues
       final response = await http.get(
         Uri.parse(
             "https://raw.githubusercontent.com/omarlshenawy/vvv/refs/heads/main/m.json?t=${DateTime.now().millisecondsSinceEpoch}"),
-      ).timeout(
-        const Duration(seconds: 15),
-        onTimeout: () => http.Response('Timeout', 408),
       );
 
       if (response.statusCode == 200) {
@@ -174,89 +85,151 @@ class _MovieListPageState extends State<MovieListPage> {
         });
       } else {
         setState(() {
-          error = "Failed to load movies (${response.statusCode})";
+          error = "Failed to load movies";
           isLoading = false;
         });
       }
     } catch (e) {
       setState(() {
-        error = "Connection error: ${e.toString()}";
+        error = e.toString();
         isLoading = false;
       });
     }
   }
 
-  // Tizen remote control navigation
-  void _handleRemoteNavigation(String direction) {
-    final crossAxisCount = (MediaQuery.of(context).size.width >= 900) ? 5 : 2;
+  void _scrollToSelectedIndex() {
+    if (_selectedIndex < 0 || _selectedIndex >= movies.length) return;
 
-    switch (direction) {
-      case 'up':
-        if (_focusedIndex >= crossAxisCount) {
-          _focusedIndex -= crossAxisCount;
-        }
-        break;
-      case 'down':
-        if (_focusedIndex + crossAxisCount < movies.length) {
-          _focusedIndex += crossAxisCount;
-        }
-        break;
-      case 'left':
-        if (_focusedIndex > 0) {
-          _focusedIndex--;
-        }
-        break;
-      case 'right':
-        if (_focusedIndex < movies.length - 1) {
-          _focusedIndex++;
-        }
-        break;
-      case 'select':
-        if (_focusedIndex < movies.length) {
-          _openMovieDetail(_focusedIndex);
-        }
-        break;
-    }
+    // Calculate row of selected item
+    int row = _selectedIndex ~/ _crossAxisCount;
 
-    setState(() {
-      _hoveredIndex = _focusedIndex;
-    });
+    // Estimate position (adjust these values based on your grid)
+    double itemHeight = 280; // Approximate height of each grid item
+    double mainAxisSpacing = 25;
+    double padding = 20;
 
-    // Scroll to keep focused item visible
-    _scrollToFocusedItem();
-  }
-
-  void _scrollToFocusedItem() {
-    final crossAxisCount = (MediaQuery.of(context).size.width >= 900) ? 5 : 2;
-    final row = _focusedIndex ~/ crossAxisCount;
-    final itemHeight = MediaQuery.of(context).size.width / crossAxisCount / 0.7 + 25;
-    final targetOffset = row * itemHeight;
+    double targetOffset = (row * (itemHeight + mainAxisSpacing)) - (MediaQuery.of(context).size.height / 3);
 
     if (_scrollController.hasClients) {
+      targetOffset = targetOffset.clamp(0.0, _scrollController.position.maxScrollExtent);
+
       _scrollController.animateTo(
-        targetOffset.clamp(0.0, _scrollController.position.maxScrollExtent),
+        targetOffset,
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeOutCubic,
       );
     }
   }
 
-  void _openMovieDetail(int index) {
-    if (index < movies.length) {
-      Navigator.push(
-        context,
-        PageRouteBuilder(
-          pageBuilder: (_, __, ___) => MovieDetailPage(movie: movies[index]),
-          transitionsBuilder: (_, animation, __, child) {
-            return FadeTransition(opacity: animation, child: child);
-          },
-        ),
-      );
+  KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
     }
+
+    if (movies.isEmpty) return KeyEventResult.ignored;
+
+    int maxIndex = movies.length - 1;
+    bool handled = false;
+
+    // Number key mappings for Tizen remote
+    if (event.logicalKey == LogicalKeyboardKey.digit2) {
+      // 2 = Up (-5 items)
+      setState(() {
+        _selectedIndex = (_selectedIndex - _crossAxisCount).clamp(0, maxIndex);
+        _hoveredIndex = _selectedIndex;
+      });
+      _scrollToSelectedIndex();
+      handled = true;
+    } else if (event.logicalKey == LogicalKeyboardKey.digit4) {
+      // 4 = Left (-1 item)
+      setState(() {
+        _selectedIndex = (_selectedIndex - 1).clamp(0, maxIndex);
+        _hoveredIndex = _selectedIndex;
+      });
+      _scrollToSelectedIndex();
+      handled = true;
+    } else if (event.logicalKey == LogicalKeyboardKey.digit5) {
+      // 5 = Enter/Select
+      if (_selectedIndex >= 0 && _selectedIndex < movies.length) {
+        Navigator.push(
+          context,
+          PageRouteBuilder(
+            pageBuilder: (_, __, ___) => MovieDetailPage(movie: movies[_selectedIndex]),
+            transitionsBuilder: (_, animation, __, child) {
+              return FadeTransition(opacity: animation, child: child);
+            },
+          ),
+        );
+      }
+      handled = true;
+    } else if (event.logicalKey == LogicalKeyboardKey.digit6) {
+      // 6 = Right (+1 item)
+      setState(() {
+        _selectedIndex = (_selectedIndex + 1).clamp(0, maxIndex);
+        _hoveredIndex = _selectedIndex;
+      });
+      _scrollToSelectedIndex();
+      handled = true;
+    } else if (event.logicalKey == LogicalKeyboardKey.digit8) {
+      // 8 = Down (+5 items)
+      setState(() {
+        _selectedIndex = (_selectedIndex + _crossAxisCount).clamp(0, maxIndex);
+        _hoveredIndex = _selectedIndex;
+      });
+      _scrollToSelectedIndex();
+      handled = true;
+    } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+      setState(() {
+        _selectedIndex = (_selectedIndex - _crossAxisCount).clamp(0, maxIndex);
+        _hoveredIndex = _selectedIndex;
+      });
+      _scrollToSelectedIndex();
+      handled = true;
+    } else if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+      setState(() {
+        _selectedIndex = (_selectedIndex + _crossAxisCount).clamp(0, maxIndex);
+        _hoveredIndex = _selectedIndex;
+      });
+      _scrollToSelectedIndex();
+      handled = true;
+    } else if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+      setState(() {
+        _selectedIndex = (_selectedIndex - 1).clamp(0, maxIndex);
+        _hoveredIndex = _selectedIndex;
+      });
+      _scrollToSelectedIndex();
+      handled = true;
+    } else if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+      setState(() {
+        _selectedIndex = (_selectedIndex + 1).clamp(0, maxIndex);
+        _hoveredIndex = _selectedIndex;
+      });
+      _scrollToSelectedIndex();
+      handled = true;
+    } else if (event.logicalKey == LogicalKeyboardKey.enter ||
+        event.logicalKey == LogicalKeyboardKey.select) {
+      if (_selectedIndex >= 0 && _selectedIndex < movies.length) {
+        Navigator.push(
+          context,
+          PageRouteBuilder(
+            pageBuilder: (_, __, ___) => MovieDetailPage(movie: movies[_selectedIndex]),
+            transitionsBuilder: (_, animation, __, child) {
+              return FadeTransition(opacity: animation, child: child);
+            },
+          ),
+        );
+      }
+      handled = true;
+    }
+
+    return handled ? KeyEventResult.handled : KeyEventResult.ignored;
   }
 
   @override
   Widget build(BuildContext context) {
+    // Update cross axis count based on screen width
+    _crossAxisCount = (MediaQuery.of(context).size.width >= 900) ? 5 : 2;
+
     return Scaffold(
       backgroundColor: const Color(0xFF0A0A0A),
       appBar: PreferredSize(
@@ -293,96 +266,60 @@ class _MovieListPageState extends State<MovieListPage> {
           ),
         ),
       ),
-      body: KeyboardListener(
-        focusNode: _pageFocusNode,
+      body: isLoading
+          ? Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(15),
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFFF6B00), Color(0xFFFFD700)],
+                ),
+              ),
+              child: const Padding(
+                padding: EdgeInsets.all(12.0),
+                child: CircularProgressIndicator(
+                  strokeWidth: 3,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              "Loading your movies...",
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 16,
+                letterSpacing: 1,
+              ),
+            ),
+          ],
+        ),
+      )
+          : error != null
+          ? Center(
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.red.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(15),
+            border: Border.all(color: Colors.red.withOpacity(0.3)),
+          ),
+          child: Text(
+            error!,
+            style: const TextStyle(color: Colors.red, fontSize: 16),
+          ),
+        ),
+      )
+          : Focus(
+        focusNode: _focusNode,
         autofocus: true,
-        onKeyEvent: (KeyEvent event) {
-          if (event is KeyDownEvent) {
-            // Handle Tizen remote control keys
-            if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
-              _handleRemoteNavigation('up');
-            } else if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
-              _handleRemoteNavigation('down');
-            } else if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
-              _handleRemoteNavigation('left');
-            } else if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
-              _handleRemoteNavigation('right');
-            } else if (event.logicalKey == LogicalKeyboardKey.select ||
-                event.logicalKey == LogicalKeyboardKey.enter) {
-              _handleRemoteNavigation('select');
-            }
-          }
-        },
-        child: isLoading
-            ? Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 60,
-                height: 60,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(15),
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFFFF6B00), Color(0xFFFFD700)],
-                  ),
-                ),
-                child: const Padding(
-                  padding: EdgeInsets.all(12.0),
-                  child: CircularProgressIndicator(
-                    strokeWidth: 3,
-                    valueColor:
-                    AlwaysStoppedAnimation<Color>(Colors.white),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              const Text(
-                "Loading your movies...",
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 16,
-                  letterSpacing: 1,
-                ),
-              ),
-            ],
-          ),
-        )
-            : error != null
-            ? Center(
-          child: Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.red.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(15),
-              border:
-              Border.all(color: Colors.red.withOpacity(0.3)),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  error!,
-                  style: const TextStyle(
-                      color: Colors.red, fontSize: 16),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 10),
-                ElevatedButton(
-                  onPressed: () {
-                    setState(() {
-                      isLoading = true;
-                      error = null;
-                    });
-                    fetchMovies();
-                  },
-                  child: const Text('Retry'),
-                ),
-              ],
-            ),
-          ),
-        )
-            : Container(
+        onKeyEvent: _handleKeyEvent,
+        child: Container(
           decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topLeft,
@@ -396,14 +333,9 @@ class _MovieListPageState extends State<MovieListPage> {
           ),
           child: GridView.builder(
             controller: _scrollController,
-            padding: const EdgeInsets.symmetric(
-                vertical: 20, horizontal: 40),
-            gridDelegate:
-            SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount:
-              (MediaQuery.of(context).size.width >= 900)
-                  ? 5
-                  : 2,
+            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 40),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: _crossAxisCount,
               crossAxisSpacing: 25,
               mainAxisSpacing: 25,
               childAspectRatio: 0.7,
@@ -411,159 +343,154 @@ class _MovieListPageState extends State<MovieListPage> {
             itemCount: movies.length,
             itemBuilder: (context, index) {
               final movie = movies[index];
-              final isFocused = _focusedIndex == index;
+              final isHovered = _hoveredIndex == index;
+              final isSelected = _selectedIndex == index;
 
-              return GestureDetector(
-                onTap: () => _openMovieDetail(index),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  curve: Curves.easeOutCubic,
-                  transform: Matrix4.identity()
-                    ..scale(isFocused ? 1.05 : 1.0),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(20),
-                    border: isFocused
-                        ? Border.all(
-                        color: const Color(0xFFFF6B00),
-                        width: 3)
-                        : null,
-                    boxShadow: isFocused
-                        ? [
-                      BoxShadow(
-                        color: const Color(0xFFFF6B00)
-                            .withOpacity(0.6),
-                        blurRadius: 20,
-                        spreadRadius: 2,
+              return MouseRegion(
+                onEnter: (_) => setState(() {
+                  _hoveredIndex = index;
+                  _selectedIndex = index;
+                }),
+                onExit: (_) => setState(() => _hoveredIndex = -1),
+                child: GestureDetector(
+                  onTap: () {
+                    setState(() => _selectedIndex = index);
+                    Navigator.push(
+                      context,
+                      PageRouteBuilder(
+                        pageBuilder: (_, __, ___) => MovieDetailPage(movie: movie),
+                        transitionsBuilder: (_, animation, __, child) {
+                          return FadeTransition(opacity: animation, child: child);
+                        },
                       ),
-                    ]
-                        : [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.4),
-                        blurRadius: 10,
-                        offset: const Offset(0, 6),
-                      ),
-                    ],
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(20),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: isFocused
-                              ? [
-                            const Color(0xFFFF6B00),
-                            const Color(0xFF1A1A1A)
-                          ]
-                              : [
-                            const Color(0xFF2A2A2A),
-                            const Color(0xFF1E1E1E)
-                          ],
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
+                    );
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeOutCubic,
+                    transform: Matrix4.identity()..scale(isHovered || isSelected ? 1.08 : 1.0),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(20),
+                      border: isSelected
+                          ? Border.all(color: const Color(0xFFFFD700), width: 3)
+                          : null,
+                      boxShadow: isHovered || isSelected
+                          ? [
+                        BoxShadow(
+                          color: const Color(0xFFFF6B00).withOpacity(0.6),
+                          blurRadius: 25,
+                          spreadRadius: 3,
                         ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment:
-                        CrossAxisAlignment.start,
-                        children: [
-                          Flexible(
-                            flex: 3,
-                            child: Container(
-                              width: double.infinity,
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [
-                                    Colors.black.withOpacity(0.2),
-                                    Colors.black.withOpacity(0.8),
-                                  ],
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
+                      ]
+                          : [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.4),
+                          blurRadius: 10,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(20),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: isHovered || isSelected
+                                ? [const Color(0xFFFF6B00), const Color(0xFF1A1A1A)]
+                                : [const Color(0xFF2A2A2A), const Color(0xFF1E1E1E)],
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Flexible(
+                              flex: 3,
+                              child: Container(
+                                width: double.infinity,
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      Colors.black.withOpacity(0.2),
+                                      Colors.black.withOpacity(0.8),
+                                    ],
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                  ),
                                 ),
-                              ),
-                              child: Center(
-                                child: Icon(
-                                  "${movie["posterUrl"]}".trim() ==
-                                      "1"
-                                      ? Icons.image
-                                      : Icons
-                                      .image_not_supported,
-                                  size: isFocused ? 100 : 70,
-                                  color: Colors.white,
+                                child: Center(
+                                  child: Icon(
+                                    "${movie["posterUrl"]}".trim() == "1"
+                                        ? Icons.image
+                                        : Icons.image_not_supported,
+                                    size: isHovered || isSelected ? 120 : 80,
+                                    color: Colors.white,
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Column(
-                              crossAxisAlignment:
-                              CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(
-                                  padding:
-                                  const EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 4),
-                                  decoration: BoxDecoration(
-                                    gradient:
-                                    const LinearGradient(
-                                      colors: [
-                                        Color(0xFFFF6B00),
-                                        Color(0xFFFF8C00)
+                            Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 10, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      gradient: const LinearGradient(
+                                        colors: [Color(0xFFFF6B00), Color(0xFFFF8C00)],
+                                      ),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      "EP ${movie["episode"]}",
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Center(
+                                    child: Text(
+                                      movie["title"] ?? "",
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: isHovered || isSelected ? 20 : 18,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  AnimatedOpacity(
+                                    duration: const Duration(milliseconds: 300),
+                                    opacity: isHovered || isSelected ? 1 : 0,
+                                    child: const Row(
+                                      children: [
+                                        Icon(Icons.play_arrow,
+                                            color: Colors.white, size: 16),
+                                        SizedBox(width: 4),
+                                        Text(
+                                          "Watch",
+                                          style: TextStyle(
+                                            color: Colors.white70,
+                                            fontSize: 12,
+                                          ),
+                                        ),
                                       ],
                                     ),
-                                    borderRadius:
-                                    BorderRadius.circular(8),
-                                  ),
-                                  child: Text(
-                                    "EP ${movie["episode"]}",
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Center(
-                                  child: Text(
-                                    movie["title"] ?? "",
-                                    maxLines: 1,
-                                    overflow:
-                                    TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize:
-                                      isFocused ? 19 : 17,
-                                    ),
-                                  ),
-                                ),
-                                if (isFocused) ...[
-                                  const SizedBox(height: 6),
-                                  const Row(
-                                    mainAxisAlignment:
-                                    MainAxisAlignment.center,
-                                    children: [
-                                      Icon(Icons.play_arrow,
-                                          color: Colors.white,
-                                          size: 16),
-                                      SizedBox(width: 4),
-                                      Text(
-                                        "Select",
-                                        style: TextStyle(
-                                          color: Colors.white70,
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                    ],
                                   ),
                                 ],
-                              ],
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -573,10 +500,87 @@ class _MovieListPageState extends State<MovieListPage> {
           ),
         ),
       ),
+      floatingActionButton: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          RawMaterialButton(
+            onPressed: () {
+              if (_scrollController.hasClients) {
+                _scrollController.animateTo(
+                  (_scrollController.offset - 380)
+                      .clamp(0.0, _scrollController.position.maxScrollExtent),
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeInOut,
+                );
+              }
+            },
+            shape: const CircleBorder(),
+            padding: EdgeInsets.zero,
+            elevation: 10,
+            fillColor: Colors.transparent,
+            child: Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFEA6000), Color(0xFFE69D00)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFE88200).withOpacity(0.5),
+                    blurRadius: 10,
+                    spreadRadius: 5,
+                  ),
+                ],
+              ),
+              child: const Icon(Icons.arrow_upward, size: 50, color: Colors.white),
+            ),
+          ),
+          const SizedBox(height: 30),
+          RawMaterialButton(
+            onPressed: () {
+              if (_scrollController.hasClients) {
+                _scrollController.animateTo(
+                  (_scrollController.offset + 380)
+                      .clamp(0.0, _scrollController.position.maxScrollExtent),
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeInOut,
+                );
+              }
+            },
+            shape: const CircleBorder(),
+            padding: EdgeInsets.zero,
+            elevation: 10,
+            fillColor: Colors.transparent,
+            child: Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFEA6000), Color(0xFFE69D00)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFE88200).withOpacity(0.5),
+                    blurRadius: 10,
+                    spreadRadius: 5,
+                  ),
+                ],
+              ),
+              child: const Icon(Icons.arrow_downward, size: 50, color: Colors.white),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
-
 
 // ------------------- Movie Detail Page (FIXED) -------------------
 class MovieDetailPage extends StatefulWidget {
