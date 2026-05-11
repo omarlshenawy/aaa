@@ -46,8 +46,7 @@ class _MovieListPageState extends State<MovieListPage> {
   bool isLoading = true;
   String? error;
   final ScrollController _scrollController = ScrollController();
-  int _hoveredIndex = -1;
-  int _selectedIndex = 0; // Currently selected item index
+  int? _selectedIndex; // null = nothing selected initially // Currently selected item index (only changed by keyboard/remote)
   final FocusNode _focusNode = FocusNode();
 
   // Grid configuration
@@ -97,21 +96,35 @@ class _MovieListPageState extends State<MovieListPage> {
     }
   }
 
+  void _ensureSelectionExists() {
+    if (_selectedIndex == null) {
+      _selectedIndex = 0;
+    }
+  }
+
   void _scrollToSelectedIndex() {
-    if (_selectedIndex < 0 || _selectedIndex >= movies.length) return;
+    if (_selectedIndex == null) return;
+    if (movies.isEmpty) return;
 
-    // Calculate row of selected item
-    int row = _selectedIndex ~/ _crossAxisCount;
+    final int index = _selectedIndex!;
 
-    // Estimate position (adjust these values based on your grid)
-    double itemHeight = 280; // Approximate height of each grid item
+    if (index < 0 || index >= movies.length) return;
+
+    int row = index ~/ _crossAxisCount;
+
+    double itemHeight = 280;
     double mainAxisSpacing = 25;
-    double padding = 20;
 
-    double targetOffset = (row * (itemHeight + mainAxisSpacing)) - (MediaQuery.of(context).size.height / 3);
+    double screenHeight = MediaQuery.of(context).size.height;
+
+    double targetOffset =
+        (row * (itemHeight + mainAxisSpacing)) - (screenHeight / 3);
 
     if (_scrollController.hasClients) {
-      targetOffset = targetOffset.clamp(0.0, _scrollController.position.maxScrollExtent);
+      targetOffset = targetOffset.clamp(
+        0.0,
+        _scrollController.position.maxScrollExtent,
+      );
 
       _scrollController.animateTo(
         targetOffset,
@@ -128,91 +141,57 @@ class _MovieListPageState extends State<MovieListPage> {
 
     if (movies.isEmpty) return KeyEventResult.ignored;
 
-    int maxIndex = movies.length - 1;
+    final int maxIndex = movies.length - 1;
     bool handled = false;
 
-    // Number key mappings for Tizen remote
-    if (event.logicalKey == LogicalKeyboardKey.digit2) {
-      // 2 = Up (-5 items)
+    void move(int newIndex) {
       setState(() {
-        _selectedIndex = (_selectedIndex - _crossAxisCount).clamp(0, maxIndex);
-        _hoveredIndex = _selectedIndex;
+        _ensureSelectionExists();
+        _selectedIndex = newIndex.clamp(0, maxIndex);
       });
       _scrollToSelectedIndex();
+    }
+
+    // 🔹 UP (digit2 / arrowUp)
+    if (event.logicalKey == LogicalKeyboardKey.digit2 ||
+        event.logicalKey == LogicalKeyboardKey.arrowUp) {
+      move((_selectedIndex ?? 0) - _crossAxisCount);
       handled = true;
-    } else if (event.logicalKey == LogicalKeyboardKey.digit4) {
-      // 4 = Left (-1 item)
-      setState(() {
-        _selectedIndex = (_selectedIndex - 1).clamp(0, maxIndex);
-        _hoveredIndex = _selectedIndex;
-      });
-      _scrollToSelectedIndex();
+    }
+
+    // 🔹 LEFT (digit4 / arrowLeft)
+    else if (event.logicalKey == LogicalKeyboardKey.digit4 ||
+        event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+      move((_selectedIndex ?? 0) - 1);
       handled = true;
-    } else if (event.logicalKey == LogicalKeyboardKey.digit5) {
-      // 5 = Enter/Select
-      if (_selectedIndex >= 0 && _selectedIndex < movies.length) {
-        Navigator.push(
-          context,
-          PageRouteBuilder(
-            pageBuilder: (_, __, ___) => MovieDetailPage(movie: movies[_selectedIndex]),
-            transitionsBuilder: (_, animation, __, child) {
-              return FadeTransition(opacity: animation, child: child);
-            },
-          ),
-        );
-      }
+    }
+
+    // 🔹 RIGHT (digit6 / arrowRight)
+    else if (event.logicalKey == LogicalKeyboardKey.digit6 ||
+        event.logicalKey == LogicalKeyboardKey.arrowRight) {
+      move((_selectedIndex ?? 0) + 1);
       handled = true;
-    } else if (event.logicalKey == LogicalKeyboardKey.digit6) {
-      // 6 = Right (+1 item)
-      setState(() {
-        _selectedIndex = (_selectedIndex + 1).clamp(0, maxIndex);
-        _hoveredIndex = _selectedIndex;
-      });
-      _scrollToSelectedIndex();
+    }
+
+    // 🔹 DOWN (digit8 / arrowDown)
+    else if (event.logicalKey == LogicalKeyboardKey.digit8 ||
+        event.logicalKey == LogicalKeyboardKey.arrowDown) {
+      move((_selectedIndex ?? 0) + _crossAxisCount);
       handled = true;
-    } else if (event.logicalKey == LogicalKeyboardKey.digit8) {
-      // 8 = Down (+5 items)
-      setState(() {
-        _selectedIndex = (_selectedIndex + _crossAxisCount).clamp(0, maxIndex);
-        _hoveredIndex = _selectedIndex;
-      });
-      _scrollToSelectedIndex();
-      handled = true;
-    } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
-      setState(() {
-        _selectedIndex = (_selectedIndex - _crossAxisCount).clamp(0, maxIndex);
-        _hoveredIndex = _selectedIndex;
-      });
-      _scrollToSelectedIndex();
-      handled = true;
-    } else if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
-      setState(() {
-        _selectedIndex = (_selectedIndex + _crossAxisCount).clamp(0, maxIndex);
-        _hoveredIndex = _selectedIndex;
-      });
-      _scrollToSelectedIndex();
-      handled = true;
-    } else if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
-      setState(() {
-        _selectedIndex = (_selectedIndex - 1).clamp(0, maxIndex);
-        _hoveredIndex = _selectedIndex;
-      });
-      _scrollToSelectedIndex();
-      handled = true;
-    } else if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
-      setState(() {
-        _selectedIndex = (_selectedIndex + 1).clamp(0, maxIndex);
-        _hoveredIndex = _selectedIndex;
-      });
-      _scrollToSelectedIndex();
-      handled = true;
-    } else if (event.logicalKey == LogicalKeyboardKey.enter ||
+    }
+
+    // 🔹 ENTER / SELECT (digit5 / enter / select)
+    else if (event.logicalKey == LogicalKeyboardKey.digit5 ||
+        event.logicalKey == LogicalKeyboardKey.enter ||
         event.logicalKey == LogicalKeyboardKey.select) {
-      if (_selectedIndex >= 0 && _selectedIndex < movies.length) {
+      if (_selectedIndex != null &&
+          _selectedIndex! >= 0 &&
+          _selectedIndex! < movies.length) {
         Navigator.push(
           context,
           PageRouteBuilder(
-            pageBuilder: (_, __, ___) => MovieDetailPage(movie: movies[_selectedIndex]),
+            pageBuilder: (_, __, ___) =>
+                MovieDetailPage(movie: movies[_selectedIndex!]),
             transitionsBuilder: (_, animation, __, child) {
               return FadeTransition(opacity: animation, child: child);
             },
@@ -343,99 +322,133 @@ class _MovieListPageState extends State<MovieListPage> {
             itemCount: movies.length,
             itemBuilder: (context, index) {
               final movie = movies[index];
-              final isHovered = _hoveredIndex == index;
               final isSelected = _selectedIndex == index;
 
-              return MouseRegion(
-                onEnter: (_) => setState(() {
-                  _hoveredIndex = index;
-                  _selectedIndex = index;
-                }),
-                onExit: (_) => setState(() => _hoveredIndex = -1),
-                child: GestureDetector(
-                  onTap: () {
-                    setState(() => _selectedIndex = index);
-                    Navigator.push(
-                      context,
-                      PageRouteBuilder(
-                        pageBuilder: (_, __, ___) => MovieDetailPage(movie: movie),
-                        transitionsBuilder: (_, animation, __, child) {
-                          return FadeTransition(opacity: animation, child: child);
-                        },
-                      ),
-                    );
-                  },
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeOutCubic,
-                    transform: Matrix4.identity()..scale(isHovered || isSelected ? 1.08 : 1.0),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(20),
-                      border: isSelected
-                          ? Border.all(color: const Color(0xFFFFD700), width: 3)
-                          : null,
-                      boxShadow: isHovered || isSelected
-                          ? [
-                        BoxShadow(
-                          color: const Color(0xFFFF6B00).withOpacity(0.6),
-                          blurRadius: 25,
-                          spreadRadius: 3,
-                        ),
-                      ]
-                          : [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.4),
-                          blurRadius: 10,
-                          offset: const Offset(0, 6),
-                        ),
-                      ],
+              return GestureDetector(
+                onTap: () {
+                  // Mouse click just navigates - doesn't change any state
+                  Navigator.push(
+                    context,
+                    PageRouteBuilder(
+                      pageBuilder: (_, __, ___) => MovieDetailPage(movie: movie),
+                      transitionsBuilder: (_, animation, __, child) {
+                        return FadeTransition(opacity: animation, child: child);
+                      },
                     ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(20),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: isHovered || isSelected
-                                ? [const Color(0xFFFF6B00), const Color(0xFF1A1A1A)]
-                                : [const Color(0xFF2A2A2A), const Color(0xFF1E1E1E)],
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                          ),
+                  );
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeOutCubic,
+                  transform: Matrix4.identity()..scale(isSelected ? 1.05 : 1.0),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(20),
+
+                    boxShadow: isSelected
+                        ? [
+                      BoxShadow(
+                        color: const Color(0xFFFF6B00).withOpacity(0.6),
+                        blurRadius: 25,
+                        spreadRadius: 3,
+                      ),
+                    ]
+                        : [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.4),
+                        blurRadius: 10,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: isSelected
+                              ? [const Color(0xFFFF6B00), const Color(0xFF1A1A1A)]
+                              : [const Color(0xFF2A2A2A), const Color(0xFF1E1E1E)],
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Flexible(
-                              flex: 3,
-                              child: Container(
-                                width: double.infinity,
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    colors: [
-                                      Colors.black.withOpacity(0.2),
-                                      Colors.black.withOpacity(0.8),
-                                    ],
-                                    begin: Alignment.topCenter,
-                                    end: Alignment.bottomCenter,
-                                  ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Flexible(
+                            flex: 3,
+                            child: Container(
+                              width: double.infinity,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    Colors.black.withOpacity(0.2),
+                                    Colors.black.withOpacity(0.8),
+                                  ],
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
                                 ),
-                                child: Center(
-                                  child: Icon(
-                                    "${movie["posterUrl"]}".trim() == "1"
-                                        ? Icons.image
-                                        : Icons.image_not_supported,
-                                    size: isHovered || isSelected ? 120 : 80,
-                                    color: Colors.white,
-                                  ),
+                              ),
+                              child: Center(
+                                child: Icon(
+                                  "${movie["posterUrl"]}".trim() == "1"
+                                      ? Icons.image
+                                      : Icons.image_not_supported,
+                                  size: isSelected ? 120 : 80,
+                                  color: Colors.white,
                                 ),
                               ),
                             ),
-                            Padding(
-                              padding: const EdgeInsets.all(12),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if(movie["episode"] == "l")
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 10, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      gradient: const LinearGradient(
+                                        colors: [Color(0xFFBA1C00), Color(
+                                            0xFFDD0000)],
+                                      ),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      "Live",
+                                      style: const TextStyle(
+                                        letterSpacing: 1.3,
+                                        color: Colors.white,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                if(movie["episode"] == "m")
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 10, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      gradient: const LinearGradient(
+                                        colors: [Color(0xFF006E02), Color(
+                                            0xFF00B804)],
+                                      ),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      "Movie",
+                                      style: const TextStyle(
+                                        letterSpacing: 1.3,
+                                        color: Colors.white,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                if(movie["episode"] != "m" && movie["episode"] != "l")
                                   Container(
                                     padding: const EdgeInsets.symmetric(
                                         horizontal: 10, vertical: 4),
@@ -454,43 +467,42 @@ class _MovieListPageState extends State<MovieListPage> {
                                       ),
                                     ),
                                   ),
-                                  const SizedBox(height: 8),
-                                  Center(
-                                    child: Text(
-                                      movie["title"] ?? "",
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: isHovered || isSelected ? 20 : 18,
-                                      ),
+                                const SizedBox(height: 8),
+                                Center(
+                                  child: Text(
+                                    movie["title"] ?? "",
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: isSelected ? 20 : 18,
                                     ),
                                   ),
-                                  const SizedBox(height: 6),
-                                  AnimatedOpacity(
-                                    duration: const Duration(milliseconds: 300),
-                                    opacity: isHovered || isSelected ? 1 : 0,
-                                    child: const Row(
-                                      children: [
-                                        Icon(Icons.play_arrow,
-                                            color: Colors.white, size: 16),
-                                        SizedBox(width: 4),
-                                        Text(
-                                          "Watch",
-                                          style: TextStyle(
-                                            color: Colors.white70,
-                                            fontSize: 12,
-                                          ),
+                                ),
+                                const SizedBox(height: 6),
+                                AnimatedOpacity(
+                                  duration: const Duration(milliseconds: 300),
+                                  opacity: isSelected ? 1 : 0,
+                                  child: const Row(
+                                    children: [
+                                      Icon(Icons.play_arrow,
+                                          color: Colors.white, size: 16),
+                                      SizedBox(width: 4),
+                                      Text(
+                                        "Watch",
+                                        style: TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 12,
                                         ),
-                                      ],
-                                    ),
+                                      ),
+                                    ],
                                   ),
-                                ],
-                              ),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
