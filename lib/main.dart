@@ -103,35 +103,48 @@ class _MovieListPageState extends State<MovieListPage> {
   }
 
   void _scrollToSelectedIndex() {
-    if (_selectedIndex == null) return;
-    if (movies.isEmpty) return;
+    if (_selectedIndex == null || movies.isEmpty || !_scrollController.hasClients) return;
 
     final int index = _selectedIndex!;
+    final int row = index ~/ _crossAxisCount;
 
-    if (index < 0 || index >= movies.length) return;
-
-    int row = index ~/ _crossAxisCount;
-
-    double itemHeight = 280;
+    // These should match your GridView's item dimensions/spacing
+    // childAspectRatio is 0.7, so height = width / 0.7
+    double screenWidth = MediaQuery.of(context).size.width;
+    double horizontalPadding = 80; // 40 horizontal on each side
+    double gridWidth = screenWidth - horizontalPadding;
+    double itemWidth = (gridWidth - (_crossAxisCount - 1) * 25) / _crossAxisCount;
+    double itemHeight = itemWidth / 0.7;
     double mainAxisSpacing = 25;
+    double verticalPadding = 20;
 
-    double screenHeight = MediaQuery.of(context).size.height;
+    // Calculate the vertical position of the row
+    double rowTopOffset = verticalPadding + (row * (itemHeight + mainAxisSpacing));
+    double rowBottomOffset = rowTopOffset + itemHeight;
 
-    double targetOffset =
-        (row * (itemHeight + mainAxisSpacing)) - (screenHeight / 3);
+    double currentScrollOffset = _scrollController.offset;
+    double viewportHeight = MediaQuery.of(context).size.height;
+    double viewportBottom = currentScrollOffset + viewportHeight;
 
-    if (_scrollController.hasClients) {
-      targetOffset = targetOffset.clamp(
-        0.0,
-        _scrollController.position.maxScrollExtent,
-      );
+    double targetOffset = currentScrollOffset;
 
-      _scrollController.animateTo(
-        targetOffset,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOutCubic,
-      );
+    // Check if the item is outside the current view (top or bottom)
+    if (rowTopOffset < currentScrollOffset + 100) {
+      // If it's above the view (or near the top), scroll up to show it
+      targetOffset = rowTopOffset - 100;
+    } else if (rowBottomOffset > viewportBottom - 100) {
+      // If it's below the view, scroll down to bring it into view
+      targetOffset = rowBottomOffset - viewportHeight + 100;
+    } else {
+      // Already well within view, no need to jump
+      return;
     }
+
+    _scrollController.animateTo(
+      targetOffset.clamp(0.0, _scrollController.position.maxScrollExtent),
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOutCubic,
+    );
   }
 
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
@@ -448,7 +461,7 @@ class _MovieListPageState extends State<MovieListPage> {
                                       ),
                                     ),
                                   ),
-                                if(movie["episode"] != "m" && movie["episode"] != "l")
+                                if(movie["episode"] != "" && movie["episode"] != "live")
                                   Container(
                                     padding: const EdgeInsets.symmetric(
                                         horizontal: 10, vertical: 4),
