@@ -629,6 +629,7 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
     _initializeVideo();
   }
 
+
   Future<void> _initializeVideo() async {
     try {
       final videoUrl = widget.movie["videoUrl"]!;
@@ -696,30 +697,45 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
   }
 
   void handleKey(RawKeyEvent event) {
-    if (event is RawKeyDownEvent) {
-      if (event.logicalKey == LogicalKeyboardKey.select ||
-          event.logicalKey == LogicalKeyboardKey.enter ||
-          event.logicalKey == LogicalKeyboardKey.space) {
-        if (videoController.value.isPlaying) {
-          videoController.pause();
-        } else {
-          videoController.play();
-        }
-        setState(() {});
+    if (event is! RawKeyDownEvent) return;
+
+    // Play / Pause
+    if (event.logicalKey == LogicalKeyboardKey.select ||
+        event.logicalKey == LogicalKeyboardKey.enter ||
+        event.logicalKey == LogicalKeyboardKey.space ||
+        event.logicalKey == LogicalKeyboardKey.digit5) {
+      if (videoController.value.isPlaying) {
+        videoController.pause();
+      } else {
+        videoController.play();
+      }
+      setState(() {});
+    }
+
+    // Fullscreen with keyboard:
+    // 0 key on keyboard
+    // Numpad 0
+    // F key
+    else if (event.logicalKey == LogicalKeyboardKey.digit0 ||
+        event.logicalKey == LogicalKeyboardKey.numpad0 ||
+        event.logicalKey == LogicalKeyboardKey.keyF) {
+      enterFullscreen();
+    }
+
+    // Seek controls (disabled for live streams)
+    if (!_isLiveStream) {
+      // Left = -30 sec
+      if (event.logicalKey == LogicalKeyboardKey.arrowLeft ||
+          event.logicalKey == LogicalKeyboardKey.digit4) {
+        jumpSeconds(-30);
       }
 
-      if (!_isLiveStream) {
-        if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
-          jumpSeconds(-10);
-        }
-        if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
-          jumpSeconds(10);
-        }
+      // Right = +30 sec
+      if (event.logicalKey == LogicalKeyboardKey.arrowRight ||
+          event.logicalKey == LogicalKeyboardKey.digit6) {
+        jumpSeconds(30);
       }
 
-      if (event.logicalKey == LogicalKeyboardKey.keyF) {
-        enterFullscreen();
-      }
     }
   }
 
